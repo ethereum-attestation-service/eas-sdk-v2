@@ -38,8 +38,8 @@ interface RequestOptions {
   deadline?: bigint;
   from: Signer;
   value?: bigint;
-  maxPriorityFeePerGas?: bigint | Promise<bigint>;
-  maxFeePerGas?: bigint | Promise<bigint>;
+  maxPriorityFeePerGas?: bigint;
+  maxFeePerGas?: bigint;
 }
 
 export interface AttestationOptions extends RequestOptions {
@@ -72,18 +72,18 @@ export const expectAttestation = async (
 
   let uid;
 
-  const overrides =
-    maxPriorityFeePerGas && maxFeePerGas
-      ? { maxPriorityFeePerGas: maxPriorityFeePerGas?.toString(), maxFeePerGas: maxFeePerGas?.toString() }
-      : undefined;
   let tx: Transaction<string> | undefined;
 
   switch (signatureType) {
     case SignatureType.Direct: {
       uid = await (
-        await eas
-          .connect(txSender)
-          .attest({ schema, data: { recipient, expirationTime, revocable, refUID, data, value } }, overrides)
+        await eas.connect(txSender).attest(
+          { schema, data: { recipient, expirationTime, revocable, refUID, data, value } },
+          {
+            maxPriorityFeePerGas,
+            maxFeePerGas
+          }
+        )
       ).wait();
 
       break;
@@ -115,7 +115,10 @@ export const expectAttestation = async (
           attester: await txSender.getAddress(),
           deadline
         },
-        overrides
+        {
+          maxPriorityFeePerGas,
+          maxFeePerGas
+        }
       );
       uid = await tx.wait();
 
@@ -154,7 +157,10 @@ export const expectAttestation = async (
           attester: await txSender.getAddress(),
           deadline
         },
-        overrides
+        {
+          maxPriorityFeePerGas,
+          maxFeePerGas
+        }
       );
 
       uid = await tx.wait();
@@ -225,11 +231,6 @@ export const expectMultiAttestations = async (
     maxFeePerGas
   } = options;
 
-  const overrides =
-    maxPriorityFeePerGas && maxFeePerGas
-      ? { maxPriorityFeePerGas: maxPriorityFeePerGas?.toString(), maxFeePerGas: maxFeePerGas?.toString() }
-      : undefined;
-
   let tx: Transaction<string[]> | undefined;
   let uids: string[] = [];
 
@@ -282,7 +283,10 @@ export const expectMultiAttestations = async (
         });
       }
 
-      tx = await eas.connect(txSender).multiAttestByDelegation(multiDelegatedAttestationRequests, overrides);
+      tx = await eas.connect(txSender).multiAttestByDelegation(multiDelegatedAttestationRequests, {
+        maxPriorityFeePerGas,
+        maxFeePerGas
+      });
       uids = await tx.wait();
 
       break;
@@ -330,7 +334,10 @@ export const expectMultiAttestations = async (
         });
       }
 
-      tx = await eas.connect(txSender).multiAttestByDelegationProxy(multiDelegatedProxyAttestationRequests, overrides);
+      tx = await eas.connect(txSender).multiAttestByDelegationProxy(multiDelegatedProxyAttestationRequests, {
+        maxPriorityFeePerGas,
+        maxFeePerGas
+      });
       uids = await tx.wait();
 
       for (const uid of uids) {
@@ -370,15 +377,17 @@ export const expectRevocation = async (
     maxFeePerGas
   } = options;
 
-  const overrides =
-    maxPriorityFeePerGas && maxFeePerGas
-      ? { maxPriorityFeePerGas: maxPriorityFeePerGas?.toString(), maxFeePerGas: maxFeePerGas?.toString() }
-      : undefined;
   let tx: Transaction<void> | undefined;
 
   switch (signatureType) {
     case SignatureType.Direct: {
-      tx = await eas.connect(txSender).revoke({ schema, data: { uid, value } }, overrides);
+      tx = await eas.connect(txSender).revoke(
+        { schema, data: { uid, value } },
+        {
+          maxPriorityFeePerGas,
+          maxFeePerGas
+        }
+      );
       await tx.wait();
 
       break;
@@ -398,7 +407,10 @@ export const expectRevocation = async (
           revoker: await txSender.getAddress(),
           deadline
         },
-        overrides
+        {
+          maxPriorityFeePerGas,
+          maxFeePerGas
+        }
       );
       await tx.wait();
 
@@ -424,7 +436,10 @@ export const expectRevocation = async (
           revoker: await txSender.getAddress(),
           deadline
         },
-        overrides
+        {
+          maxPriorityFeePerGas,
+          maxFeePerGas
+        }
       );
       await tx.wait();
 
@@ -453,15 +468,14 @@ export const expectMultiRevocations = async (
     maxFeePerGas
   } = options;
 
-  const overrides =
-    maxPriorityFeePerGas && maxFeePerGas
-      ? { maxPriorityFeePerGas: maxPriorityFeePerGas?.toString(), maxFeePerGas: maxFeePerGas?.toString() }
-      : undefined;
   let tx: Transaction<void> | undefined;
 
   switch (signatureType) {
     case SignatureType.Direct: {
-      tx = await eas.connect(txSender).multiRevoke(requests, overrides);
+      tx = await eas.connect(txSender).multiRevoke(requests, {
+        maxPriorityFeePerGas,
+        maxFeePerGas
+      });
       await tx.wait();
 
       break;
@@ -498,7 +512,10 @@ export const expectMultiRevocations = async (
         });
       }
 
-      tx = await eas.connect(txSender).multiRevokeByDelegation(multiDelegatedRevocationRequests, overrides);
+      tx = await eas.connect(txSender).multiRevokeByDelegation(multiDelegatedRevocationRequests, {
+        maxPriorityFeePerGas,
+        maxFeePerGas
+      });
       await tx.wait();
 
       break;
@@ -537,7 +554,10 @@ export const expectMultiRevocations = async (
         });
       }
 
-      tx = await eas.connect(txSender).multiRevokeByDelegationProxy(multiDelegatedProxyRevocationRequests, overrides);
+      tx = await eas.connect(txSender).multiRevokeByDelegationProxy(multiDelegatedProxyRevocationRequests, {
+        maxPriorityFeePerGas,
+        maxFeePerGas
+      });
       await tx.wait();
 
       break;

@@ -12,6 +12,9 @@ export interface TransactionRequest {
   maxPriorityFeePerGas?: bigint;
 }
 
+// Public alias for commonly used partial overrides shape
+export type TransactionOverrides = Partial<TransactionRequest>;
+
 export interface TransactionLog {
   topics: string[];
   data: string;

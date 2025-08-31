@@ -2,7 +2,14 @@ import IndexerArtifact from '@ethereum-attestation-service/eas-contracts/artifac
 import type { Abi } from 'viem';
 import { legacyVersion } from './legacy/version';
 import { DelegatedProxy } from './offchain';
-import { Base, RequireSigner, Transaction, TransactionProvider, TransactionSigner } from './transaction';
+import {
+  Base,
+  RequireSigner,
+  Transaction,
+  TransactionProvider,
+  TransactionSigner,
+  type TransactionOverrides
+} from './transaction';
 
 export interface IndexerOptions {
   signer?: TransactionSigner | TransactionProvider;
@@ -95,7 +102,7 @@ export class Indexer extends Base {
   @RequireSigner
   public async indexAttestation(
     { uid }: IndexAttestationOptions,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     const tx = this.populate('indexAttestation', [uid], overrides);
     return new Transaction(tx, this.signer!, async () => {});
@@ -106,7 +113,7 @@ export class Indexer extends Base {
   @RequireSigner
   public async indexAttestations(
     { uids }: IndexAttestationsOptions,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     const tx = this.populate('indexAttestations', [uids], overrides);
     return new Transaction(tx, this.signer!, () => Promise.resolve(undefined));

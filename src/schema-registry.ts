@@ -7,6 +7,7 @@ import {
   Transaction,
   TransactionProvider,
   TransactionSigner,
+  type TransactionOverrides,
   type TransactionReceipt
 } from './transaction';
 import { ZERO_ADDRESS, ZERO_BYTES32 } from './utils';
@@ -62,7 +63,7 @@ export class SchemaRegistry extends Base {
   @RequireSigner
   public async register(
     { schema, resolverAddress = ZERO_ADDRESS, revocable = true }: RegisterSchemaParams,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string>> {
     const tx = this.populate('register', [schema, resolverAddress, revocable], overrides as unknown as object);
     return new Transaction(tx, this.signer!, (_receipt: TransactionReceipt) =>

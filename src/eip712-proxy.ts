@@ -15,6 +15,7 @@ import {
   Transaction,
   TransactionProvider,
   TransactionSigner,
+  type TransactionOverrides,
   type TransactionReceipt
 } from './transaction';
 import { getUIDsFromAttestReceipt, ZERO_BYTES32 } from './utils';
@@ -101,7 +102,7 @@ export class EIP712Proxy extends Base {
       signature,
       deadline = NO_EXPIRATION
     }: DelegatedProxyAttestationRequest,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string>> {
     const tx = this.populate(
       'attestByDelegation',
@@ -127,7 +128,7 @@ export class EIP712Proxy extends Base {
   @RequireSigner
   public async multiAttestByDelegationProxy(
     requests: MultiDelegatedProxyAttestationRequest[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string[]>> {
     const multiAttestationRequests = requests.map((r) => ({
       schema: r.schema,
@@ -170,7 +171,7 @@ export class EIP712Proxy extends Base {
       revoker,
       deadline = NO_EXPIRATION
     }: DelegatedProxyRevocationRequest,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     const tx = this.populate(
       'revokeByDelegation',
@@ -194,7 +195,7 @@ export class EIP712Proxy extends Base {
   @RequireSigner
   public async multiRevokeByDelegationProxy(
     requests: MultiDelegatedProxyRevocationRequest[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     const multiRevocationRequests = requests.map((r) => ({
       schema: r.schema,

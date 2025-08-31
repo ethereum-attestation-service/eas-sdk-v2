@@ -26,6 +26,7 @@ import {
   Transaction,
   TransactionProvider,
   TransactionSigner,
+  type TransactionOverrides,
   type TransactionReceipt
 } from './transaction';
 import {
@@ -208,7 +209,7 @@ export class EAS extends Base {
         value = 0n
       }
     }: AttestationRequest,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string>> {
     const tx = this.populate(
       'attest',
@@ -240,7 +241,7 @@ export class EAS extends Base {
       attester,
       deadline = NO_EXPIRATION
     }: DelegatedAttestationRequest,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string>> {
     const isLegacy = await this.isLegacyContract();
     /* eslint-disable indent */
@@ -271,7 +272,7 @@ export class EAS extends Base {
   @RequireSigner
   public async multiAttest(
     requests: MultiAttestationRequest[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string[]>> {
     const multiAttestationRequests = requests.map((r) => ({
       schema: r.schema,
@@ -303,7 +304,7 @@ export class EAS extends Base {
   @RequireSigner
   public async multiAttestByDelegation(
     requests: MultiDelegatedAttestationRequest[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string[]>> {
     const isLegacy = await this.isLegacyContract();
     const multiAttestationRequests = requests.map((r) => ({
@@ -346,7 +347,7 @@ export class EAS extends Base {
   @RequireSigner
   public async revoke(
     { schema, data: { uid, value = 0n } }: RevocationRequest,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     const tx = this.populate('revoke', [{ schema, data: { uid, value } }], {
       ...(overrides as unknown as object),
@@ -359,7 +360,7 @@ export class EAS extends Base {
   @RequireSigner
   public async revokeByDelegation(
     { schema, data: { uid, value = 0n }, signature, revoker, deadline = NO_EXPIRATION }: DelegatedRevocationRequest,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     const isLegacy = await this.isLegacyContract();
     const args = isLegacy
@@ -376,7 +377,7 @@ export class EAS extends Base {
   @RequireSigner
   public async multiRevoke(
     requests: MultiRevocationRequest[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     const multiRevocationRequests = requests.map((r) => ({
       schema: r.schema,
@@ -402,7 +403,7 @@ export class EAS extends Base {
   @RequireSigner
   public async multiRevokeByDelegation(
     requests: MultiDelegatedRevocationRequest[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     const isLegacy = await this.isLegacyContract();
     const multiRevocationRequests = requests.map((r) => ({
@@ -435,7 +436,7 @@ export class EAS extends Base {
   @RequireProxy
   public attestByDelegationProxy(
     request: DelegatedProxyAttestationRequest,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string>> {
     return this.proxy!.attestByDelegationProxy(request, overrides);
   }
@@ -445,7 +446,7 @@ export class EAS extends Base {
   @RequireProxy
   public multiAttestByDelegationProxy(
     requests: MultiDelegatedProxyAttestationRequest[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<string[]>> {
     return this.proxy!.multiAttestByDelegationProxy(requests, overrides);
   }
@@ -455,7 +456,7 @@ export class EAS extends Base {
   @RequireProxy
   public revokeByDelegationProxy(
     request: DelegatedProxyRevocationRequest,
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     return this.proxy!.revokeByDelegationProxy(request, overrides);
   }
@@ -465,7 +466,7 @@ export class EAS extends Base {
   @RequireProxy
   public multiRevokeByDelegationProxy(
     requests: MultiDelegatedProxyRevocationRequest[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
+    overrides?: TransactionOverrides
   ): Promise<Transaction<void>> {
     return this.proxy!.multiRevokeByDelegationProxy(requests, overrides);
   }
@@ -473,10 +474,7 @@ export class EAS extends Base {
   // Timestamps the specified bytes32 data
   // eslint-disable-next-line require-await
   @RequireSigner
-  public async timestamp(
-    data: string,
-    overrides?: Partial<import('./transaction').TransactionRequest>
-  ): Promise<Transaction<bigint>> {
+  public async timestamp(data: string, overrides?: TransactionOverrides): Promise<Transaction<bigint>> {
     const tx = this.populate('timestamp', [data], overrides);
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
       Promise.resolve(getTimestampFromTimestampReceipt(receipt)[0])
@@ -486,10 +484,7 @@ export class EAS extends Base {
   // Timestamps the specified multiple bytes32 data
   // eslint-disable-next-line require-await
   @RequireSigner
-  public async multiTimestamp(
-    data: string[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
-  ): Promise<Transaction<bigint[]>> {
+  public async multiTimestamp(data: string[], overrides?: TransactionOverrides): Promise<Transaction<bigint[]>> {
     const tx = this.populate('multiTimestamp', [data], overrides);
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
       Promise.resolve(getTimestampFromTimestampReceipt(receipt))
@@ -499,10 +494,7 @@ export class EAS extends Base {
   // Revokes the specified offchain attestation UID
   // eslint-disable-next-line require-await
   @RequireSigner
-  public async revokeOffchain(
-    uid: string,
-    overrides?: Partial<import('./transaction').TransactionRequest>
-  ): Promise<Transaction<bigint>> {
+  public async revokeOffchain(uid: string, overrides?: TransactionOverrides): Promise<Transaction<bigint>> {
     const tx = this.populate('revokeOffchain', [uid], overrides);
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
       Promise.resolve(getTimestampFromOffchainRevocationReceipt(receipt)[0])
@@ -512,10 +504,7 @@ export class EAS extends Base {
   // Revokes the specified multiple offchain attestation UIDs
   // eslint-disable-next-line require-await
   @RequireSigner
-  public async multiRevokeOffchain(
-    uids: string[],
-    overrides?: Partial<import('./transaction').TransactionRequest>
-  ): Promise<Transaction<bigint[]>> {
+  public async multiRevokeOffchain(uids: string[], overrides?: TransactionOverrides): Promise<Transaction<bigint[]>> {
     const tx = this.populate('multiRevokeOffchain', [uids], overrides);
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
       Promise.resolve(getTimestampFromOffchainRevocationReceipt(receipt))
