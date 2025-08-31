@@ -1,4 +1,5 @@
 import { Abi, decodeFunctionResult, encodeFunctionData } from 'viem';
+import { WaitableTxResponse } from './utils';
 
 // Minimal transaction request/receipt/log shapes to avoid depending on ethers types
 export interface TransactionRequest {
@@ -29,8 +30,7 @@ export interface TransactionProvider {
 }
 
 export interface TransactionSigner extends TransactionProvider {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sendTransaction: (tx: TransactionRequest) => Promise<any>;
+  sendTransaction: (tx: TransactionRequest) => Promise<unknown>;
   provider?: TransactionProvider;
 }
 
@@ -40,28 +40,19 @@ export function RequireSigner(
   _propertyKey: string,
   descriptor: PropertyDescriptor
 ): PropertyDescriptor;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function RequireSigner<TFn extends (this: unknown, ...args: any[]) => any>(
+export function RequireSigner<TFn extends (this: unknown, ...args: unknown[]) => unknown>(
   value: TFn,
   _context: ClassMethodDecoratorContext
 ): TFn;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function RequireSigner(...args: any[]): any {
+export function RequireSigner(...args: unknown[]): unknown {
   // Standard decorator: (value, context)
   if (args.length === 2) {
-    const [value] = args as [
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this: unknown, ...fnArgs: any[]) => any,
-      ClassMethodDecoratorContext
-    ];
+    const [value] = args as [(this: unknown, ...fnArgs: unknown[]) => unknown, ClassMethodDecoratorContext];
 
-    const wrapped = function (
-      this: unknown,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ...fnArgs: any[]
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const signer: TransactionSigner | undefined = (this as any).signer;
+    const wrapped = function (this: unknown, ...fnArgs: unknown[]) {
+      const signer: TransactionSigner | undefined = (this as { signer?: unknown }).signer as
+        | TransactionSigner
+        | undefined;
       if (!signer || !signer.sendTransaction) {
         throw new Error('Invalid signer');
       }
@@ -74,16 +65,12 @@ export function RequireSigner(...args: any[]): any {
   // Legacy decorator: (target, propertyKey, descriptor)
   const [_target, _propertyKey, descriptor] = args as [unknown, string, PropertyDescriptor];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const original = descriptor.value as unknown as (this: unknown, ...fnArgs: any[]) => unknown;
+  const original = descriptor.value as unknown as (this: unknown, ...fnArgs: unknown[]) => unknown;
 
-  descriptor.value = function (
-    this: unknown,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...fnArgs: any[]
-  ) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const signer: TransactionSigner | undefined = (this as any).signer;
+  descriptor.value = function (this: unknown, ...fnArgs: unknown[]) {
+    const signer: TransactionSigner | undefined = (this as { signer?: unknown }).signer as
+      | TransactionSigner
+      | undefined;
     if (!signer || !signer.sendTransaction) {
       throw new Error('Invalid signer');
     }
@@ -120,10 +107,10 @@ export class Transaction<T> {
       throw new Error(`Transaction already broadcast: ${this.receipt}`);
     }
 
-    const tx = await (this.signer as TransactionSigner).sendTransaction(this.data);
+    const tx = (await (this.signer as TransactionSigner).sendTransaction(this.data)) as unknown as WaitableTxResponse;
 
     // ethers v6 returns a response with wait(); viem returns hash. We rely on signer to provide wait() on response.
-    this.receipt = await tx.wait(confirmations);
+    this.receipt = (await tx.wait(confirmations)) as unknown as TransactionReceipt;
     if (!this.receipt) {
       throw new Error(`Unable to confirm: ${tx}`);
     }

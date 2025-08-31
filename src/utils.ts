@@ -31,8 +31,8 @@ const getDataFromReceipt = (receipt: TransactionReceipt, event: Event, attribute
       topics: log.topics as unknown as [`0x${string}`, ...`0x${string}`[]],
       data: log.data as `0x${string}`
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (decoded as any).args[attribute] as string;
+
+    return (decoded as unknown as { args: { [key: string]: unknown } }).args[attribute] as string;
   });
 };
 
@@ -45,8 +45,7 @@ export const getTimestampFromTimestampReceipt = (receipt: TransactionReceipt): b
 export const getTimestampFromOffchainRevocationReceipt = (receipt: TransactionReceipt): bigint[] =>
   getDataFromReceipt(receipt, Event.RevokedOffchain, 'timestamp').map((s) => BigInt(s));
 
-// Keep legacy helpers for ethers-style TransactionResponse inputs
-type WaitableTxResponse = { wait: (confirmations?: number) => Promise<unknown> };
+export type WaitableTxResponse = { wait: (confirmations?: number) => Promise<unknown> };
 
 export const getUIDFromAttestTx = async (res: Promise<WaitableTxResponse> | WaitableTxResponse): Promise<string> => {
   return (await getUIDsFromMultiAttestTx(res))[0];

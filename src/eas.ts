@@ -64,28 +64,17 @@ export function RequireProxy(
   _propertyKey: string,
   descriptor: PropertyDescriptor
 ): PropertyDescriptor;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function RequireProxy<TFn extends (this: unknown, ...args: any[]) => any>(
+export function RequireProxy<TFn extends (this: unknown, ...args: unknown[]) => unknown>(
   value: TFn,
   _context: ClassMethodDecoratorContext
 ): TFn;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function RequireProxy(...args: any[]): any {
+export function RequireProxy(...args: unknown[]): unknown {
   // Standard decorator: (value, context)
   if (args.length === 2) {
-    const [value] = args as [
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this: unknown, ...fnArgs: any[]) => any,
-      ClassMethodDecoratorContext
-    ];
+    const [value] = args as [(this: unknown, ...fnArgs: unknown[]) => unknown, ClassMethodDecoratorContext];
 
-    const wrapped = function (
-      this: unknown,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ...fnArgs: any[]
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(this as any).proxy) {
+    const wrapped = function (this: unknown, ...fnArgs: unknown[]) {
+      if (!(this as { proxy?: unknown }).proxy) {
         throw new Error('Invalid proxy');
       }
       return value.apply(this as unknown, fnArgs);
@@ -97,16 +86,10 @@ export function RequireProxy(...args: any[]): any {
   // Legacy decorator: (target, propertyKey, descriptor)
   const [_target, _propertyKey, descriptor] = args as [unknown, string, PropertyDescriptor];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const original = descriptor.value as unknown as (this: unknown, ...fnArgs: any[]) => unknown;
+  const original = descriptor.value as unknown as (this: unknown, ...fnArgs: unknown[]) => unknown;
 
-  descriptor.value = function (
-    this: unknown,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...fnArgs: any[]
-  ) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!(this as any).proxy) {
+  descriptor.value = function (this: unknown, ...fnArgs: unknown[]) {
+    if (!(this as { proxy?: unknown }).proxy) {
       throw new Error('Invalid proxy');
     }
     return original.apply(this as unknown, fnArgs);

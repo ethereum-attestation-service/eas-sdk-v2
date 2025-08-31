@@ -21,8 +21,7 @@ export interface TypeDataSigner {
   signTypedData(
     domain: EIP712DomainTypedData,
     types: Record<string, Array<TypedDataField>>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    value: Record<string, any>
+    value: Record<string, unknown>
   ): Promise<string>;
 }
 
