@@ -1,7 +1,9 @@
-import { EAS__factory } from '@ethereum-attestation-service/eas-contracts';
-import { Interface, keccak256, toUtf8Bytes, TransactionReceipt, TransactionResponse, ZeroAddress } from 'ethers';
+import EASArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/EAS.sol/EAS.json';
+import { keccak256, toUtf8Bytes } from 'ethers';
+import { Abi, decodeEventLog } from 'viem';
+import type { TransactionReceipt } from './transaction';
 
-export const ZERO_ADDRESS = ZeroAddress;
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 export const ZERO_BYTES = '0x';
 export const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -18,50 +20,21 @@ const TOPICS = {
 };
 
 const getDataFromReceipt = (receipt: TransactionReceipt, event: Event, attribute: string): string[] => {
-  // eslint-disable-next-line camelcase
-  const eas = new Interface(EAS__factory.abi);
-  const logs = [];
-
-  for (const log of receipt.logs.filter((l) => l.topics[0] === TOPICS[event]) || []) {
-    logs.push({
-      ...log,
-      log: event,
-      fragment: {
-        name: event
-      },
-      args: eas.decodeEventLog(event, log.data, log.topics)
-    });
-  }
-
-  if (!logs) {
-    return [];
-  }
-
-  const filteredLogs = logs.filter((l) => l.fragment?.name === event);
-  if (filteredLogs.length === 0) {
+  const abi = (EASArtifact as { abi: Abi }).abi;
+  const logs = receipt.logs.filter((l) => l.topics[0] === TOPICS[event]);
+  if (logs.length === 0) {
     throw new Error(`Unable to process ${event} events`);
   }
 
-  return filteredLogs.map(
+  return logs.map((log) => {
+    const decoded = decodeEventLog({
+      abi,
+      topics: log.topics as unknown as [`0x${string}`, ...`0x${string}`[]],
+      data: log.data as `0x${string}`
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (log: any) => eas.decodeEventLog(event, log.data, log.topics)[attribute]
-  );
-};
-
-export const getUIDFromAttestTx = async (res: Promise<TransactionResponse> | TransactionResponse): Promise<string> => {
-  return (await getUIDsFromMultiAttestTx(res))[0];
-};
-
-export const getUIDsFromMultiAttestTx = async (
-  res: Promise<TransactionResponse> | TransactionResponse
-): Promise<string[]> => {
-  const tx = await res;
-  const receipt = await tx.wait();
-  if (!receipt) {
-    throw new Error(`Unable to confirm: ${tx}`);
-  }
-
-  return getUIDsFromAttestReceipt(receipt);
+    return (decoded as any).args[attribute] as string;
+  });
 };
 
 export const getUIDsFromAttestReceipt = (receipt: TransactionReceipt): string[] =>
@@ -72,3 +45,23 @@ export const getTimestampFromTimestampReceipt = (receipt: TransactionReceipt): b
 
 export const getTimestampFromOffchainRevocationReceipt = (receipt: TransactionReceipt): bigint[] =>
   getDataFromReceipt(receipt, Event.RevokedOffchain, 'timestamp').map((s) => BigInt(s));
+
+// Keep legacy helpers for ethers-style TransactionResponse inputs
+type WaitableTxResponse = { wait: (confirmations?: number) => Promise<unknown> };
+
+export const getUIDFromAttestTx = async (res: Promise<WaitableTxResponse> | WaitableTxResponse): Promise<string> => {
+  return (await getUIDsFromMultiAttestTx(res))[0];
+};
+
+export const getUIDsFromMultiAttestTx = async (
+  res: Promise<WaitableTxResponse> | WaitableTxResponse
+): Promise<string[]> => {
+  const tx = await res;
+  // Ethers responses expose wait(); cast the receipt to our minimal shape
+  const receipt = (await tx.wait()) as unknown as TransactionReceipt | undefined;
+  if (!receipt) {
+    throw new Error(`Unable to confirm: ${tx}`);
+  }
+
+  return getUIDsFromAttestReceipt(receipt);
+};

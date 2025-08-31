@@ -1,10 +1,15 @@
-import {
-  SchemaRegistry__factory,
-  SchemaRegistry as SchemaRegistryContract
-} from '@ethereum-attestation-service/eas-contracts';
-import { Overrides, solidityPackedKeccak256, TransactionReceipt } from 'ethers';
+import SchemaRegistryArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/SchemaRegistry.sol/SchemaRegistry.json';
+import { solidityPackedKeccak256 } from 'ethers';
+import type { Abi } from 'viem';
 import { legacyVersion } from './legacy/version';
-import { Base, RequireSigner, Transaction, TransactionProvider, TransactionSigner } from './transaction';
+import {
+  Base,
+  RequireSigner,
+  Transaction,
+  TransactionProvider,
+  TransactionSigner,
+  type TransactionReceipt
+} from './transaction';
 import { ZERO_ADDRESS, ZERO_BYTES32 } from './utils';
 
 export declare type SchemaRecord = {
@@ -28,16 +33,21 @@ export interface SchemaRegistryOptions {
   signer?: TransactionSigner | TransactionProvider;
 }
 
-export class SchemaRegistry extends Base<SchemaRegistryContract> {
+export class SchemaRegistry extends Base {
   constructor(address: string, options?: SchemaRegistryOptions) {
     const { signer } = options || {};
 
-    super(new SchemaRegistry__factory(), address, signer);
+    super((SchemaRegistryArtifact as { abi: Abi }).abi as Abi, address, signer);
   }
 
   // Returns the version of the contract
   public async getVersion(): Promise<string> {
-    return (await legacyVersion(this.contract)) ?? this.contract.version();
+    return (
+      (await legacyVersion({
+        getAddress: async () => this.getAddress(),
+        runner: { provider: this.getProvider() }
+      } as any)) ?? (await this.read<string>('version'))
+    );
   }
 
   // Returns a schema UID
@@ -49,19 +59,17 @@ export class SchemaRegistry extends Base<SchemaRegistryContract> {
   @RequireSigner
   public async register(
     { schema, resolverAddress = ZERO_ADDRESS, revocable = true }: RegisterSchemaParams,
-    overrides?: Overrides
+    overrides?: Partial<Parameters<Transaction['estimateGas']>>[0]
   ): Promise<Transaction<string>> {
-    return new Transaction(
-      await this.contract.register.populateTransaction(schema, resolverAddress, revocable, overrides ?? {}),
-      this.signer!,
-      // eslint-disable-next-line require-await
-      async (_receipt: TransactionReceipt) => SchemaRegistry.getSchemaUID(schema, resolverAddress, revocable)
+    const tx = this.populate('register', [schema, resolverAddress, revocable], overrides as any);
+    return new Transaction(tx, this.signer!, async (_receipt: TransactionReceipt) =>
+      SchemaRegistry.getSchemaUID(schema, resolverAddress, revocable)
     );
   }
 
   // Returns an existing schema by a schema UID
   public async getSchema({ uid }: GetSchemaParams): Promise<SchemaRecord> {
-    const schema = await this.contract.getSchema(uid);
+    const schema = await this.read<SchemaRecord>('getSchema', [uid]);
     if (schema.uid === ZERO_BYTES32) {
       throw new Error('Schema not found');
     }

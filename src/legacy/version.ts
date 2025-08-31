@@ -1,4 +1,5 @@
-import { BaseContract } from 'ethers';
+import { decodeFunctionResult, encodeFunctionData, type Abi } from 'viem';
+import type { TransactionProvider } from '../transaction';
 
 const VERSION_ABI = [
   {
@@ -16,16 +17,26 @@ const VERSION_ABI = [
   }
 ];
 
-export const legacyVersion = async (contract: BaseContract): Promise<string | undefined> => {
+export const legacyVersion = async (contract: {
+  getAddress: () => Promise<string> | string;
+  runner?: { provider?: TransactionProvider };
+}): Promise<string | undefined> => {
   const provider = contract.runner?.provider;
   if (!provider) {
     throw new Error("provider wasn't set");
   }
 
-  const legacyContract = new BaseContract(await contract.getAddress(), VERSION_ABI, provider);
+  const address =
+    typeof contract.getAddress === 'function' ? await contract.getAddress() : (contract.getAddress as any);
 
   try {
-    return await legacyContract.getFunction('VERSION').staticCall();
+    const data = encodeFunctionData({ abi: VERSION_ABI as unknown as Abi, functionName: 'VERSION' });
+    const raw = await provider.call({ to: address, data });
+    return decodeFunctionResult({
+      abi: VERSION_ABI as unknown as Abi,
+      functionName: 'VERSION',
+      data: raw
+    }) as unknown as string;
   } catch {
     return undefined;
   }

@@ -1,22 +1,37 @@
-import {
-  BaseContract,
-  ContractFactory,
-  ContractRunner,
-  ContractTransaction,
-  TransactionReceipt,
-  TransactionRequest
-} from 'ethers';
+import { Abi, decodeFunctionResult, encodeFunctionData } from 'viem';
+
+// Minimal transaction request/receipt/log shapes to avoid depending on ethers types
+export interface TransactionRequest {
+  to: string;
+  from?: string;
+  data?: string;
+  value?: bigint;
+  gas?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+}
+
+export interface TransactionLog {
+  topics: string[];
+  data: string;
+}
+
+export interface TransactionReceipt {
+  logs: TransactionLog[];
+}
 
 export interface TransactionProvider {
   estimateGas: (tx: TransactionRequest) => Promise<bigint>;
-
   call: (tx: TransactionRequest) => Promise<string>;
   resolveName: (name: string) => Promise<null | string>;
+  // Optional network accessor (for chain id)
+  getNetwork?: () => Promise<{ chainId: bigint } | { chainId: number }>;
 }
 
 export interface TransactionSigner extends TransactionProvider {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sendTransaction: (tx: TransactionRequest) => Promise<any>;
+  provider?: TransactionProvider;
 }
 
 // Overloads to support both legacy (experimental) and standard (TC39) decorators
@@ -79,13 +94,13 @@ export function RequireSigner(...args: any[]): any {
 }
 
 export class Transaction<T> {
-  public readonly data: ContractTransaction;
+  public readonly data: TransactionRequest;
   public receipt?: TransactionReceipt;
   private readonly signer: TransactionSigner | TransactionProvider;
   private readonly waitCallback: (receipt: TransactionReceipt) => Promise<T>;
 
   constructor(
-    data: ContractTransaction,
+    data: TransactionRequest,
     signer: TransactionSigner | TransactionProvider,
     waitCallback: (receipt: TransactionReceipt) => Promise<T>
   ) {
@@ -106,6 +121,8 @@ export class Transaction<T> {
     }
 
     const tx = await (this.signer as TransactionSigner).sendTransaction(this.data);
+
+    // ethers v6 returns a response with wait(); viem returns hash. We rely on signer to provide wait() on response.
     this.receipt = await tx.wait(confirmations);
     if (!this.receipt) {
       throw new Error(`Unable to confirm: ${tx}`);
@@ -115,35 +132,86 @@ export class Transaction<T> {
   }
 }
 
-export class Base<C extends BaseContract> {
-  public contract: C;
+export class Base {
+  protected readonly abi: Abi;
+  protected readonly address: string;
   protected signer?: TransactionSigner | TransactionProvider;
 
-  constructor(factory: ContractFactory, address: string, signer?: TransactionSigner | TransactionProvider) {
-    this.contract = factory.attach(address) as C;
+  constructor(abi: Abi, address: string, signer?: TransactionSigner | TransactionProvider) {
+    this.abi = abi;
+    this.address = address;
     if (signer) {
       this.connect(signer);
-
-      this.signer = signer;
     }
   }
 
-  // Connects the API to a specific signer
+  public getAddress(): string {
+    return this.address;
+  }
+
+  // Connects the API to a specific signer or provider
   public connect(signer: TransactionSigner | TransactionProvider) {
-    this.contract = this.contract.connect(signer as unknown as ContractRunner) as C;
-
     this.signer = signer;
-
     return this;
+  }
+
+  public getProvider(): TransactionProvider | undefined {
+    return (this.signer as TransactionSigner | undefined)?.provider ?? this.signer;
+  }
+
+  // Generic read using this contract's ABI
+  protected async read<TResult>(functionName: string, args: unknown[] = []): Promise<TResult> {
+    const provider = this.getProvider();
+    if (!provider) {
+      throw new Error('provider was not set');
+    }
+
+    const data = encodeFunctionData({ abi: this.abi, functionName, args });
+    const raw = await provider.call({ to: this.address, data });
+    return decodeFunctionResult({ abi: this.abi, functionName, data: raw }) as TResult;
+  }
+
+  // Read using a custom ABI fragment (useful for legacy-specific queries)
+  protected async readWithAbi<TResult>(abi: Abi, functionName: string, args: unknown[] = []): Promise<TResult> {
+    const provider = this.getProvider();
+    if (!provider) {
+      throw new Error('provider was not set');
+    }
+
+    const data = encodeFunctionData({ abi, functionName, args });
+    const raw = await provider.call({ to: this.address, data });
+    return decodeFunctionResult({ abi, functionName, data: raw }) as TResult;
+  }
+
+  // Create a transaction request for a contract write call
+  protected populate(functionName: string, args: unknown[] = [], overrides: Partial<TransactionRequest> = {}) {
+    const data = encodeFunctionData({ abi: this.abi, functionName, args });
+    const tx: TransactionRequest = { to: this.address, data, ...overrides };
+    return tx;
+  }
+
+  // Create a transaction request using a custom ABI
+  protected populateWithAbi(
+    abi: Abi,
+    functionName: string,
+    args: unknown[] = [],
+    overrides: Partial<TransactionRequest> = {}
+  ) {
+    const data = encodeFunctionData({ abi, functionName, args });
+    const tx: TransactionRequest = { to: this.address, data, ...overrides };
+    return tx;
   }
 
   // Gets the chain ID
   public async getChainId(): Promise<bigint> {
-    const provider = this.contract.runner?.provider;
-    if (!provider) {
+    const provider: TransactionProvider | undefined =
+      (this.signer as TransactionSigner | undefined)?.provider ?? this.signer;
+    if (!provider || !provider.getNetwork) {
       throw new Error("Unable to get the chain ID: provider wasn't set");
     }
 
-    return (await provider.getNetwork()).chainId;
+    const network = await provider.getNetwork();
+    const chainId = (network as { chainId: bigint }).chainId ?? BigInt((network as { chainId: number }).chainId);
+    return chainId;
   }
 }
