@@ -1,5 +1,5 @@
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
-import { ethers } from 'ethers';
+import { bytesToHex, decodeAbiParameters, encodeAbiParameters } from 'viem';
 
 export type FullMerkleDataTree = {
   root: string;
@@ -41,7 +41,11 @@ export class PrivateData {
     } else {
       this.values = values.map((v) => ({
         ...v,
-        salt: ethers.hexlify(ethers.randomBytes(32))
+        salt: (() => {
+          const rand = new Uint8Array(32);
+          crypto.getRandomValues(rand);
+          return bytesToHex(rand);
+        })()
       }));
     }
 
@@ -54,14 +58,14 @@ export class PrivateData {
   }
 
   private encodeMerkleValues(values: MerkleValueWithSalt[]): EncodedMerkleValue[] {
-    return values.map((v) => [v.type, v.name, ethers.AbiCoder.defaultAbiCoder().encode([v.type], [v.value]), v.salt]);
+    return values.map((v) => [v.type, v.name, encodeAbiParameters([{ type: v.type }], [v.value]), v.salt]);
   }
 
   private decodeMerkleValues(values: EncodedMerkleValue[]): MerkleValueWithSalt[] {
     return values.map((v) => ({
       type: v[0],
       name: v[1],
-      value: ethers.AbiCoder.defaultAbiCoder().decode([v[0]], v[2])[0],
+      value: (decodeAbiParameters([{ type: v[0] }], v[2] as `0x${string}`) as readonly unknown[])[0],
       salt: v[3]
     }));
   }
@@ -90,7 +94,7 @@ export class PrivateData {
   }
 
   private static encodeMerkleValues(values: Leaf[]): EncodedMerkleValue[] {
-    return values.map((v) => [v.type, v.name, ethers.AbiCoder.defaultAbiCoder().encode([v.type], [v.value]), v.salt]);
+    return values.map((v) => [v.type, v.name, encodeAbiParameters([{ type: v.type }], [v.value]), v.salt]);
   }
 
   public static verifyFullTree(tree: FullMerkleDataTree): string {
@@ -99,3 +103,7 @@ export class PrivateData {
     return merkleTree.root;
   }
 }
+
+// Local minimal abi coder helpers using viem to avoid ethers
+// These helpers handle a single value encode/decode for leaf packing
+// removed local helpers; using top-level viem helpers

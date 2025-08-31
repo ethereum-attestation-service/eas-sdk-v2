@@ -1,8 +1,7 @@
 import EASLegacyArtifact from '@ethereum-attestation-service/eas-contracts-legacy/artifacts/contracts/EAS.sol/EAS.json';
 import EASArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/EAS.sol/EAS.json';
-import { hexlify, solidityPackedKeccak256, toUtf8Bytes } from 'ethers';
 import semver from 'semver';
-import type { Abi } from 'viem';
+import { encodePacked, keccak256, stringToHex, type Abi } from 'viem';
 import { EIP712Proxy } from './eip712-proxy';
 import { legacyVersion } from './legacy/version';
 import { Delegated, Offchain, OffchainAttestationVersion } from './offchain';
@@ -132,6 +131,8 @@ export class EAS extends Base {
     if (proxy) {
       this.proxy = proxy;
     }
+
+    (this.contract as unknown as { version: () => Promise<string> }).version = () => this.read<string>('version');
   }
 
   // Connects the API to a specific signer
@@ -152,9 +153,10 @@ export class EAS extends Base {
 
     return (this.version =
       (await legacyVersion({
-        getAddress: async () => this.getAddress(),
+        getAddress: () => this.getAddress(),
         runner: { provider: this.getProvider() }
-      } as any)) ?? (await this.read<string>('version')));
+      } as unknown as { getAddress: () => Promise<string> | string; runner?: { provider?: TransactionProvider } })) ??
+      (await this.read<string>('version')));
   }
 
   // Returns an existing schema by attestation UID
@@ -211,6 +213,7 @@ export class EAS extends Base {
   }
 
   // Attests to a specific schema
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async attest(
     {
@@ -230,14 +233,12 @@ export class EAS extends Base {
       'attest',
       [{ schema, data: { recipient, expirationTime, revocable, refUID, data, value } }],
       {
-        ...(overrides as any),
+        ...(overrides as unknown as object),
         value
       }
     );
-    return new Transaction(
-      tx,
-      this.signer!,
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)[0]
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getUIDsFromAttestReceipt(receipt)[0])
     );
   }
 
@@ -274,20 +275,21 @@ export class EAS extends Base {
         ];
 
     const tx = isLegacy
-      ? this.populateWithAbi(this.legacyAbi, 'attestByDelegation', args, { ...(overrides as any), value })
-      : this.populate('attestByDelegation', args, { ...(overrides as any), value });
+      ? this.populateWithAbi(this.legacyAbi, 'attestByDelegation', args, { ...(overrides as unknown as object), value })
+      : this.populate('attestByDelegation', args, { ...(overrides as unknown as object), value });
 
-    return new Transaction(
-      tx,
-      this.signer!,
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)[0]
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getUIDsFromAttestReceipt(receipt)[0])
     );
   }
 
   // Multi-attests to multiple schemas
+  // eslint-disable-next-line require-await
   @RequireSigner
-  public async multiAttest(requests: MultiAttestationRequest[], overrides?: Overrides): Promise<Transaction<string[]>> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public async multiAttest(
+    requests: MultiAttestationRequest[],
+    overrides?: Partial<import('./transaction').TransactionRequest>
+  ): Promise<Transaction<string[]>> {
     const multiAttestationRequests = requests.map((r) => ({
       schema: r.schema,
       data: r.data.map((d) => ({
@@ -306,10 +308,12 @@ export class EAS extends Base {
     }, 0n);
 
     const tx = this.populate('multiAttest', [multiAttestationRequests], {
-      ...(overrides as any),
+      ...(overrides as unknown as object),
       value: requestedValue
     });
-    return new Transaction(tx, this.signer!, async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt));
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getUIDsFromAttestReceipt(receipt))
+    );
   }
 
   // Multi-attests to multiple schemas via an EIP712 delegation requests
@@ -342,21 +346,27 @@ export class EAS extends Base {
     const args = [multiAttestationRequests];
     const tx = isLegacy
       ? this.populateWithAbi(this.legacyAbi, 'multiAttestByDelegation', args, {
-          ...(overrides as any),
+          ...(overrides as unknown as object),
           value: requestedValue
         })
-      : this.populate('multiAttestByDelegation', args, { ...(overrides as any), value: requestedValue });
+      : this.populate('multiAttestByDelegation', args, { ...(overrides as unknown as object), value: requestedValue });
 
-    return new Transaction(tx, this.signer!, async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt));
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getUIDsFromAttestReceipt(receipt))
+    );
   }
 
   // Revokes an existing attestation
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async revoke(
     { schema, data: { uid, value = 0n } }: RevocationRequest,
     overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<void>> {
-    const tx = this.populate('revoke', [{ schema, data: { uid, value } }], { ...(overrides as any), value });
+    const tx = this.populate('revoke', [{ schema, data: { uid, value } }], {
+      ...(overrides as unknown as object),
+      value
+    });
     return new Transaction(tx, this.signer!, async () => {});
   }
 
@@ -371,15 +381,18 @@ export class EAS extends Base {
       ? [{ schema, data: { uid, value }, signature, revoker }]
       : [{ schema, data: { uid, value }, signature, revoker, deadline }];
     const tx = isLegacy
-      ? this.populateWithAbi(this.legacyAbi, 'revokeByDelegation', args, { ...(overrides as any), value })
-      : this.populate('revokeByDelegation', args, { ...(overrides as any), value });
+      ? this.populateWithAbi(this.legacyAbi, 'revokeByDelegation', args, { ...(overrides as unknown as object), value })
+      : this.populate('revokeByDelegation', args, { ...(overrides as unknown as object), value });
     return new Transaction(tx, this.signer!, async () => {});
   }
 
   // Multi-revokes multiple attestations
+  // eslint-disable-next-line require-await
   @RequireSigner
-  public async multiRevoke(requests: MultiRevocationRequest[], overrides?: Overrides): Promise<Transaction<void>> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public async multiRevoke(
+    requests: MultiRevocationRequest[],
+    overrides?: Partial<import('./transaction').TransactionRequest>
+  ): Promise<Transaction<void>> {
     const multiRevocationRequests = requests.map((r) => ({
       schema: r.schema,
       data: r.data.map((d) => ({
@@ -394,10 +407,10 @@ export class EAS extends Base {
     }, 0n);
 
     const tx = this.populate('multiRevoke', [multiRevocationRequests], {
-      ...(overrides as any),
+      ...(overrides as unknown as object),
       value: requestedValue
     });
-    return new Transaction(tx, this.signer!, async () => {});
+    return new Transaction(tx, this.signer!, () => Promise.resolve(undefined));
   }
 
   // Multi-revokes multiple attestations via an EIP712 delegation requests
@@ -423,10 +436,10 @@ export class EAS extends Base {
     const args = [multiRevocationRequests];
     const tx = isLegacy
       ? this.populateWithAbi(this.legacyAbi, 'multiRevokeByDelegation', args, {
-          ...(overrides as any),
+          ...(overrides as unknown as object),
           value: requestedValue
         })
-      : this.populate('multiRevokeByDelegation', args, { ...(overrides as any), value: requestedValue });
+      : this.populate('multiRevokeByDelegation', args, { ...(overrides as unknown as object), value: requestedValue });
 
     return new Transaction(tx, this.signer!, async () => {});
   }
@@ -472,54 +485,54 @@ export class EAS extends Base {
   }
 
   // Timestamps the specified bytes32 data
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async timestamp(
     data: string,
     overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<bigint>> {
     const tx = this.populate('timestamp', [data], overrides);
-    return new Transaction(
-      tx,
-      this.signer!,
-      async (receipt: TransactionReceipt) => getTimestampFromTimestampReceipt(receipt)[0]
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getTimestampFromTimestampReceipt(receipt)[0])
     );
   }
 
   // Timestamps the specified multiple bytes32 data
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async multiTimestamp(
     data: string[],
     overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<bigint[]>> {
     const tx = this.populate('multiTimestamp', [data], overrides);
-    return new Transaction(tx, this.signer!, async (receipt: TransactionReceipt) =>
-      getTimestampFromTimestampReceipt(receipt)
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getTimestampFromTimestampReceipt(receipt))
     );
   }
 
   // Revokes the specified offchain attestation UID
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async revokeOffchain(
     uid: string,
     overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<bigint>> {
     const tx = this.populate('revokeOffchain', [uid], overrides);
-    return new Transaction(
-      tx,
-      this.signer!,
-      async (receipt: TransactionReceipt) => getTimestampFromOffchainRevocationReceipt(receipt)[0]
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getTimestampFromOffchainRevocationReceipt(receipt)[0])
     );
   }
 
   // Revokes the specified multiple offchain attestation UIDs
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async multiRevokeOffchain(
     uids: string[],
     overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<bigint[]>> {
     const tx = this.populate('multiRevokeOffchain', [uids], overrides);
-    return new Transaction(tx, this.signer!, async (receipt: TransactionReceipt) =>
-      getTimestampFromOffchainRevocationReceipt(receipt)
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getTimestampFromOffchainRevocationReceipt(receipt))
     );
   }
 
@@ -555,10 +568,40 @@ export class EAS extends Base {
     data: string,
     bump: number
   ) =>
-    solidityPackedKeccak256(
-      ['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
-      [hexlify(toUtf8Bytes(schema)), recipient, attester, time, expirationTime, revocable, refUID, data, bump]
+    keccak256(
+      encodePacked(
+        ['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
+        [
+          stringToHex(schema) as `0x${string}`,
+          recipient as `0x${string}`,
+          attester as `0x${string}`,
+          time,
+          expirationTime,
+          revocable,
+          refUID as `0x${string}`,
+          data as `0x${string}`,
+          bump
+        ]
+      )
     );
+
+  // Simulate an attest call (read-only) for validation purposes
+  public async simulateAttest(
+    input: {
+      schema: string;
+      data: {
+        recipient: string;
+        expirationTime: bigint;
+        revocable: boolean;
+        refUID: string;
+        data: string;
+        value: bigint | number;
+      };
+    },
+    from?: string
+  ): Promise<void> {
+    await (this.read<void>('attest', [input], from ? { from } : {}) as Promise<void>);
+  }
 
   // Sets the delegated attestations helper
   private async setDelegated(): Promise<Delegated> {

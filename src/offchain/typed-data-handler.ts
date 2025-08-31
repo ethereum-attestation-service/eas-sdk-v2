@@ -1,21 +1,25 @@
-import {
-  AbiCoder,
-  Addressable,
-  getAddress,
-  hexlify,
-  keccak256,
-  Signature as Sig,
-  toUtf8Bytes,
-  TypedDataDomain,
-  TypedDataField,
-  verifyTypedData
-} from 'ethers';
 import isEqual from 'lodash/isEqual';
+import {
+  concatHex,
+  encodeAbiParameters,
+  getAddress,
+  hashTypedData,
+  keccak256,
+  recoverAddress,
+  stringToHex
+} from 'viem';
 import { ZERO_ADDRESS } from '../utils';
 
-export interface TypeDataSigner extends Addressable {
+export interface TypedDataField {
+  name: string;
+  type: string;
+}
+
+export interface TypeDataSigner {
+  // Optional address accessor for convenience
+  getAddress?: () => Promise<string> | string;
   signTypedData(
-    domain: TypedDataDomain,
+    domain: EIP712DomainTypedData,
     types: Record<string, Array<TypedDataField>>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     value: Record<string, any>
@@ -114,14 +118,14 @@ export abstract class TypedDataHandler {
 
   public static getDomainSeparator(config: TypedDataConfig) {
     return keccak256(
-      AbiCoder.defaultAbiCoder().encode(
-        ['bytes32', 'bytes32', 'bytes32', 'uint256', 'address'],
+      encodeAbiParameters(
+        [{ type: 'bytes32' }, { type: 'bytes32' }, { type: 'bytes32' }, { type: 'uint256' }, { type: 'address' }],
         [
-          keccak256(toUtf8Bytes(EIP712_DOMAIN)),
-          keccak256(toUtf8Bytes(config.name)),
-          keccak256(toUtf8Bytes(config.version)),
+          keccak256(stringToHex(EIP712_DOMAIN) as `0x${string}`),
+          keccak256(stringToHex(config.name) as `0x${string}`),
+          keccak256(stringToHex(config.version) as `0x${string}`),
           config.chainId,
-          config.address
+          config.address as `0x${string}`
         ]
       )
     );
@@ -142,17 +146,20 @@ export abstract class TypedDataHandler {
     signer: TypeDataSigner
   ): Promise<EIP712Response<T, P>> {
     const rawSignature = await signer.signTypedData(types.domain, types.types, params);
-    const signature = Sig.from(rawSignature);
+    const sig = rawSignature.startsWith('0x') ? rawSignature.slice(2) : rawSignature;
+    const r = `0x${sig.slice(0, 64)}`;
+    const s = `0x${sig.slice(64, 128)}`;
+    const v = parseInt(sig.slice(128, 130), 16);
 
-    return { ...types, signature: { v: signature.v, r: signature.r, s: signature.s } };
+    return { ...types, signature: { v, r, s } };
   }
 
-  public verifyTypedDataRequestSignature<T extends EIP712MessageTypes, P extends EIP712Params>(
+  public async verifyTypedDataRequestSignature<T extends EIP712MessageTypes, P extends EIP712Params>(
     attester: string,
     response: EIP712Response<T, P>,
     types: EIP712Types<T>,
     strict = true
-  ): boolean {
+  ): Promise<boolean> {
     // Normalize the chain ID
     const domain: EIP712DomainTypedData = { ...response.domain, chainId: BigInt(response.domain.chainId) };
 
@@ -178,9 +185,20 @@ export abstract class TypedDataHandler {
     }
 
     const { signature } = response;
-    const sig = Sig.from({ v: signature.v, r: hexlify(signature.r), s: hexlify(signature.s) }).serialized;
-    const recoveredAddress = verifyTypedData(domain, response.types, response.message, sig);
+    const vNorm = signature.v >= 27 ? signature.v - 27 : signature.v;
+    const vHex = `0x${vNorm.toString(16).padStart(2, '0')}` as const;
+    const serialized = concatHex([signature.r as `0x${string}`, signature.s as `0x${string}`, vHex]);
+    const hash = hashTypedData({
+      domain: {
+        ...domain,
+        verifyingContract: domain.verifyingContract as `0x${string}`
+      },
+      primaryType: response.primaryType as unknown as string,
+      types: response.types as unknown as Record<string, Array<{ name: string; type: string }>>,
+      message: response.message as unknown as Record<string, unknown>
+    });
+    const recoveredAddress = await recoverAddress({ hash, signature: serialized as `0x${string}` });
 
-    return getAddress(attester) === getAddress(recoveredAddress);
+    return getAddress(attester) === getAddress(recoveredAddress as unknown as string);
   }
 }

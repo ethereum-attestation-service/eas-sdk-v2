@@ -1,6 +1,6 @@
-import { ZeroAddress, ZeroHash } from 'ethers';
 import * as Base64 from 'js-base64';
 import pako from 'pako';
+import { zeroAddress, zeroHash } from 'viem';
 import { EIP712MessageTypes, OffchainAttestationVersion, SignedOffchainAttestation } from './offchain';
 
 export interface SignedOffchainAttestationV1 extends Omit<SignedOffchainAttestation, 'signature' | 'version'> {
@@ -82,10 +82,10 @@ export const compactOffchainAttestationPackage = (
     signer,
     sig.uid,
     sig.message.schema,
-    sig.message.recipient === ZeroAddress ? '0' : sig.message.recipient,
+    sig.message.recipient === zeroAddress ? '0' : sig.message.recipient,
     Number(sig.message.time),
     Number(sig.message.expirationTime),
-    sig.message.refUID === ZeroHash ? '0' : sig.message.refUID,
+    sig.message.refUID === zeroHash ? '0' : sig.message.refUID,
     sig.message.revocable,
     sig.message.data,
     0,
@@ -186,10 +186,10 @@ export const uncompactOffchainAttestationPackage = (
       message: {
         version,
         schema: compacted[8],
-        recipient: compacted[9] === '0' ? ZeroAddress : compacted[9],
+        recipient: compacted[9] === '0' ? zeroAddress : compacted[9],
         time: BigInt(compacted[10]),
         expirationTime: BigInt(compacted[11]),
-        refUID: compacted[12] === '0' ? ZeroHash : compacted[12],
+        refUID: compacted[12] === '0' ? zeroHash : compacted[12],
         revocable: compacted[13],
         data: compacted[14],
         salt: compacted[17]

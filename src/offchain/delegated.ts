@@ -217,12 +217,12 @@ export class Delegated extends TypedDataHandler {
     signer: TypeDataSigner
   ): Promise<EIP712Response<EIP712MessageTypes, EIP712AttestationParams>> {
     let effectiveParams: EIP712FullAttestationParams = {
-      attester: await signer.getAddress(),
+      attester: (await (signer.getAddress?.() ?? Promise.resolve(undefined))) as unknown as string,
       ...params
     };
 
     // If nonce wasn't provided, try retrieving it onchain.
-    effectiveParams.nonce ??= await this.eas.contract.getNonce(effectiveParams.attester);
+    effectiveParams.nonce ??= await this.eas.getNonce(effectiveParams.attester);
 
     switch (this.version) {
       case DelegatedAttestationVersion.Legacy:
@@ -243,11 +243,11 @@ export class Delegated extends TypedDataHandler {
     );
   }
 
-  public verifyDelegatedAttestationSignature(
+  public async verifyDelegatedAttestationSignature(
     attester: string,
     response: EIP712Response<EIP712MessageTypes, EIP712AttestationParams>
-  ): boolean {
-    return this.verifyTypedDataRequestSignature(
+  ): Promise<boolean> {
+    const isValid = await this.verifyTypedDataRequestSignature(
       attester,
       { ...response, message: { attester, ...response.message } },
       {
@@ -255,6 +255,7 @@ export class Delegated extends TypedDataHandler {
         types: this.attestType.types
       }
     );
+    return isValid;
   }
 
   public async signDelegatedRevocation(
@@ -262,12 +263,12 @@ export class Delegated extends TypedDataHandler {
     signer: TypeDataSigner
   ): Promise<EIP712Response<EIP712MessageTypes, EIP712RevocationParams>> {
     let effectiveParams: EIP712FullRevocationParams = {
-      revoker: await signer.getAddress(),
+      revoker: (await (signer.getAddress?.() ?? Promise.resolve(undefined))) as unknown as string,
       ...params
     };
 
     // If nonce wasn't provided, try retrieving it onchain.
-    effectiveParams.nonce ??= await this.eas.contract.getNonce(effectiveParams.revoker);
+    effectiveParams.nonce ??= await this.eas.getNonce(effectiveParams.revoker);
 
     switch (this.version) {
       case DelegatedAttestationVersion.Legacy:
@@ -288,11 +289,11 @@ export class Delegated extends TypedDataHandler {
     );
   }
 
-  public verifyDelegatedRevocationSignature(
+  public async verifyDelegatedRevocationSignature(
     revoker: string,
     response: EIP712Response<EIP712MessageTypes, EIP712RevocationParams>
-  ): boolean {
-    return this.verifyTypedDataRequestSignature(
+  ): Promise<boolean> {
+    const isValid = await this.verifyTypedDataRequestSignature(
       revoker,
       { ...response, message: { revoker, ...response.message } },
       {
@@ -300,5 +301,6 @@ export class Delegated extends TypedDataHandler {
         types: this.revokeType.types
       }
     );
+    return isValid;
   }
 }

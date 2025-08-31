@@ -1,6 +1,5 @@
-import { AbiCoder, encodeBytes32String, FunctionFragment, isBytesLike } from 'ethers';
 import { CID } from 'multiformats';
-import { MultihashDigest } from 'multiformats/types/src/cid';
+import { decodeAbiParameters, encodeAbiParameters, isHex, parseAbiParameters, stringToHex } from 'viem';
 import { ZERO_ADDRESS } from './utils';
 
 export type SchemaValue =
@@ -31,7 +30,6 @@ export interface SchemaDecodedItem {
 const TUPLE_TYPE = 'tuple';
 const TUPLE_ARRAY_TYPE = 'tuple[]';
 const BYTES32 = 'bytes32';
-const STRING = 'string';
 const ADDRESS = 'address';
 const BOOL = 'bool';
 const UINT = 'uint';
@@ -44,21 +42,22 @@ export class SchemaEncoder {
     this.schema = [];
 
     const fixedSchema = schema.replace(new RegExp(`${IPFS_HASH} (\\S+)`, 'g'), `${BYTES32} $1`);
-    const fragment = FunctionFragment.from(`func(${fixedSchema})`);
+    // Use viem to parse ABI parameter list; throws on invalid schema
+    const inputs = parseAbiParameters(fixedSchema) as Array<{
+      name?: string;
+      type: string;
+      components?: Array<{ name?: string; type: string }>;
+    }>;
 
-    // The following verification will throw in case of an incorrect schema
-    AbiCoder.defaultAbiCoder().getDefaultValue(fragment.inputs);
-
-    for (const paramType of fragment.inputs) {
-      const { name, arrayChildren } = paramType;
-
-      let { type } = paramType;
+    for (const param of inputs) {
+      const name = param.name ?? '';
+      let type = param.type;
       let signature = name ? `${type} ${name}` : type;
       const signatureSuffix = name ? ` ${name}` : '';
       let typeName = type;
 
-      const isArray = arrayChildren;
-      const components = paramType.components ?? arrayChildren?.components ?? [];
+      const isArray = type.endsWith('[]');
+      const components = param.components ?? [];
       const componentsType = `(${components.map((c) => c.type).join(',')})${isArray ? '[]' : ''}`;
       const componentsFullType = `(${components.map((c) => (c.name ? `${c.type} ${c.name}` : c.type)).join(',')})${
         isArray ? '[]' : ''
@@ -90,7 +89,7 @@ export class SchemaEncoder {
       throw new Error('Invalid number or values');
     }
 
-    const data = [];
+    const data: unknown[] = [];
 
     for (const [index, schemaItem] of this.schema.entries()) {
       const { type, name, value } = params[index];
@@ -111,36 +110,39 @@ export class SchemaEncoder {
       data.push(
         schemaItem.type === BYTES32 && schemaItem.name === IPFS_HASH
           ? SchemaEncoder.decodeIpfsValue(value as string)
-          : schemaItem.type === BYTES32 && typeof value === 'string' && !isBytesLike(value)
-            ? encodeBytes32String(value)
+          : schemaItem.type === BYTES32 && typeof value === 'string' && !isHex(value)
+            ? stringToHex(value, { size: 32 })
             : value
       );
     }
 
-    return AbiCoder.defaultAbiCoder().encode(this.signatures(), data);
+    return encodeAbiParameters(
+      this.signatures().map((t) => ({ type: t })),
+      data as unknown[]
+    );
   }
 
   public decodeData(data: string): SchemaDecodedItem[] {
-    const values = AbiCoder.defaultAbiCoder().decode(this.signatures(), data).toArray();
+    const values = decodeAbiParameters(
+      this.signatures().map((t) => ({ type: t })),
+      data as `0x${string}`
+    ) as unknown[];
 
     return this.schema.map((s, i) => {
-      const fragment = FunctionFragment.from(`func(${s.signature})`);
-
-      if (fragment.inputs.length !== 1) {
-        throw new Error(`Unexpected inputs: ${fragment.inputs}`);
-      }
-
+      const [input] = parseAbiParameters(s.signature) as Array<{
+        name?: string;
+        type: string;
+        components?: Array<{ name?: string; type: string }>;
+      }>;
       let value = values[i];
-      const input = fragment.inputs[0];
-      const components = input.components ?? input.arrayChildren?.components ?? [];
+      const components = input.components ?? [];
 
-      if (value.length > 0 && typeof value !== STRING && components?.length > 0) {
-        if (Array.isArray(value[0])) {
-          const namedValues = [];
-
-          for (const val of value) {
-            const namedValue = [];
-            const rawValues = val.toArray().filter((v: unknown) => typeof v !== 'object');
+      if (Array.isArray(value) && (value as unknown[]).length > 0 && components?.length > 0) {
+        if (Array.isArray((value as unknown[])[0])) {
+          const namedValues: Array<Array<{ name: string | undefined; type: string; value: unknown }>> = [];
+          for (const val of value as unknown as Array<unknown[]>) {
+            const namedValue: Array<{ name: string | undefined; type: string; value: unknown }> = [];
+            const rawValues = (val as unknown[]).filter((v: unknown) => typeof v !== 'object');
 
             for (const [k, v] of rawValues.entries()) {
               const component = components[k];
@@ -157,8 +159,8 @@ export class SchemaEncoder {
             value: namedValues
           };
         } else {
-          const namedValue = [];
-          const rawValues = value.filter((v: unknown) => typeof v !== 'object');
+          const namedValue: Array<{ name: string | undefined; type: string; value: unknown }> = [];
+          const rawValues = (value as unknown[]).filter((v: unknown) => typeof v !== 'object');
 
           for (const [k, v] of rawValues.entries()) {
             const component = components[k];
@@ -173,14 +175,14 @@ export class SchemaEncoder {
           };
         }
       } else {
-        value = { name: s.name, type: s.type, value };
+        value = { name: s.name, type: s.type, value } as unknown as SchemaItem;
       }
 
       return {
         name: s.name,
         type: s.type,
         signature: s.signature,
-        value
+        value: value as unknown as SchemaItem
       };
     });
   }
@@ -216,17 +218,17 @@ export class SchemaEncoder {
 
   public static encodeQmHash(hash: string): string {
     const a = CID.parse(hash);
-    return AbiCoder.defaultAbiCoder().encode([BYTES32], [a.multihash.digest]);
+    return encodeAbiParameters([{ type: BYTES32 }], [a.multihash.digest]);
   }
 
-  public static decodeQmHash(bytes32: string): string {
+  public static decodeQmHash(bytes32: `0x${string}`): string {
     const digest = Uint8Array.from(Buffer.from(bytes32.slice(2), 'hex'));
-    const dec: MultihashDigest = {
+    const dec = {
       digest: digest,
       code: 18,
       size: 32,
       bytes: Uint8Array.from([18, 32, ...digest])
-    };
+    } as const;
 
     const dCID = CID.createV0(dec);
     return dCID.toString();
@@ -237,13 +239,13 @@ export class SchemaEncoder {
   }
 
   private static decodeIpfsValue(val: string) {
-    if (isBytesLike(val)) {
+    if (isHex(val)) {
       return SchemaEncoder.encodeBytes32Value(val);
     }
 
     try {
       const decodedHash = CID.parse(val);
-      const encoded = AbiCoder.defaultAbiCoder().encode([BYTES32], [decodedHash.multihash.digest]);
+      const encoded = encodeAbiParameters([{ type: BYTES32 }], [decodedHash.multihash.digest]);
 
       return encoded;
     } catch {
@@ -253,10 +255,10 @@ export class SchemaEncoder {
 
   private static encodeBytes32Value(value: string) {
     try {
-      AbiCoder.defaultAbiCoder().encode([BYTES32], [value]);
+      encodeAbiParameters([{ type: BYTES32 }], [value as unknown as `0x${string}`]);
       return value;
     } catch (_e) {
-      return encodeBytes32String(value);
+      return stringToHex(value, { size: 32 });
     }
   }
 

@@ -168,7 +168,7 @@ export class DelegatedProxy extends TypedDataHandler {
     signer: TypeDataSigner
   ): Promise<EIP712Response<EIP712MessageTypes, EIP712AttestationProxyParams>> {
     let effectiveParams: EIP712FullAttestationProxyParams = {
-      attester: await signer.getAddress(),
+      attester: (await (signer.getAddress?.() ?? Promise.resolve(undefined))) as unknown as string,
       ...params
     };
 
@@ -189,11 +189,11 @@ export class DelegatedProxy extends TypedDataHandler {
     );
   }
 
-  public verifyDelegatedProxyAttestationSignature(
+  public async verifyDelegatedProxyAttestationSignature(
     attester: string,
     response: EIP712Response<EIP712MessageTypes, EIP712AttestationProxyParams>
-  ): boolean {
-    return this.verifyTypedDataRequestSignature(
+  ): Promise<boolean> {
+    const isValid = await this.verifyTypedDataRequestSignature(
       attester,
       { ...response, message: { attester, ...response.message } },
       {
@@ -201,6 +201,7 @@ export class DelegatedProxy extends TypedDataHandler {
         types: this.attestType.types
       }
     );
+    return isValid;
   }
 
   public async signDelegatedProxyRevocation(
@@ -208,7 +209,7 @@ export class DelegatedProxy extends TypedDataHandler {
     signer: TypeDataSigner
   ): Promise<EIP712Response<EIP712MessageTypes, EIP712RevocationProxyParams>> {
     let effectiveParams: EIP712FullRevocationProxyParams = {
-      revoker: await signer.getAddress(),
+      revoker: (await (signer.getAddress?.() ?? Promise.resolve(undefined))) as unknown as string,
       ...params
     };
 
@@ -229,11 +230,11 @@ export class DelegatedProxy extends TypedDataHandler {
     );
   }
 
-  public verifyDelegatedProxyRevocationSignature(
+  public async verifyDelegatedProxyRevocationSignature(
     revoker: string,
     response: EIP712Response<EIP712MessageTypes, EIP712RevocationProxyParams>
-  ): boolean {
-    return this.verifyTypedDataRequestSignature(
+  ): Promise<boolean> {
+    const isValid = await this.verifyTypedDataRequestSignature(
       revoker,
       { ...response, message: { revoker, ...response.message } },
       {
@@ -241,5 +242,6 @@ export class DelegatedProxy extends TypedDataHandler {
         types: this.revokeType.types
       }
     );
+    return isValid;
   }
 }

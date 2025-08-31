@@ -45,9 +45,10 @@ export class EIP712Proxy extends Base {
   public async getVersion(): Promise<string> {
     return (
       (await legacyVersion({
-        getAddress: async () => this.getAddress(),
+        getAddress: () => this.getAddress(),
         runner: { provider: this.getProvider() }
-      } as any)) ?? (await this.read<string>('version'))
+      } as unknown as { getAddress: () => Promise<string> | string; runner?: { provider?: TransactionProvider } })) ??
+      this.read<string>('version')
     );
   }
 
@@ -90,6 +91,7 @@ export class EIP712Proxy extends Base {
   }
 
   // Attests to a specific schema via an EIP712 delegation request using an external EIP712 proxy
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async attestByDelegationProxy(
     {
@@ -99,7 +101,7 @@ export class EIP712Proxy extends Base {
       signature,
       deadline = NO_EXPIRATION
     }: DelegatedProxyAttestationRequest,
-    overrides?: Partial<Parameters<Transaction['estimateGas']>>[0]
+    overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<string>> {
     const tx = this.populate(
       'attestByDelegation',
@@ -112,21 +114,20 @@ export class EIP712Proxy extends Base {
           deadline
         }
       ],
-      { ...(overrides as any), value }
+      { ...(overrides as unknown as object), value }
     );
 
-    return new Transaction(
-      tx,
-      this.signer!,
-      async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt)[0]
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getUIDsFromAttestReceipt(receipt)[0])
     );
   }
 
   // Multi-attests to multiple schemas via an EIP712 delegation requests using an external EIP712 proxy
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async multiAttestByDelegationProxy(
     requests: MultiDelegatedProxyAttestationRequest[],
-    overrides?: Partial<Parameters<Transaction['estimateGas']>>[0]
+    overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<string[]>> {
     const multiAttestationRequests = requests.map((r) => ({
       schema: r.schema,
@@ -149,14 +150,17 @@ export class EIP712Proxy extends Base {
     }, 0n);
 
     const tx = this.populate('multiAttestByDelegation', [multiAttestationRequests], {
-      ...(overrides as any),
+      ...(overrides as unknown as object),
       value: requestedValue
     });
 
-    return new Transaction(tx, this.signer!, async (receipt: TransactionReceipt) => getUIDsFromAttestReceipt(receipt));
+    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
+      Promise.resolve(getUIDsFromAttestReceipt(receipt))
+    );
   }
 
   // Revokes an existing attestation an EIP712 delegation request using an external EIP712 proxy
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async revokeByDelegationProxy(
     {
@@ -166,7 +170,7 @@ export class EIP712Proxy extends Base {
       revoker,
       deadline = NO_EXPIRATION
     }: DelegatedProxyRevocationRequest,
-    overrides?: Partial<Parameters<Transaction['estimateGas']>>[0]
+    overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<void>> {
     const tx = this.populate(
       'revokeByDelegation',
@@ -179,17 +183,18 @@ export class EIP712Proxy extends Base {
           deadline
         }
       ],
-      { ...(overrides as any), value }
+      { ...(overrides as unknown as object), value }
     );
 
-    return new Transaction(tx, this.signer!, async () => {});
+    return new Transaction(tx, this.signer!, () => Promise.resolve(undefined));
   }
 
   // Multi-revokes multiple attestations via an EIP712 delegation requests using an external EIP712 proxy
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async multiRevokeByDelegationProxy(
     requests: MultiDelegatedProxyRevocationRequest[],
-    overrides?: Partial<Parameters<Transaction['estimateGas']>>[0]
+    overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<void>> {
     const multiRevocationRequests = requests.map((r) => ({
       schema: r.schema,
@@ -208,7 +213,7 @@ export class EIP712Proxy extends Base {
     }, 0n);
 
     const tx = this.populate('multiRevokeByDelegation', [multiRevocationRequests], {
-      ...(overrides as any),
+      ...(overrides as unknown as object),
       value: requestedValue
     });
 

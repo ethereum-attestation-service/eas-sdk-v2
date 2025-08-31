@@ -27,7 +27,9 @@ export const legacyVersion = async (contract: {
   }
 
   const address =
-    typeof contract.getAddress === 'function' ? await contract.getAddress() : (contract.getAddress as any);
+    typeof contract.getAddress === 'function'
+      ? await contract.getAddress()
+      : (contract.getAddress as unknown as string);
 
   try {
     const data = encodeFunctionData({ abi: VERSION_ABI as unknown as Abi, functionName: 'VERSION' });
@@ -35,7 +37,7 @@ export const legacyVersion = async (contract: {
     return decodeFunctionResult({
       abi: VERSION_ABI as unknown as Abi,
       functionName: 'VERSION',
-      data: raw
+      data: raw as `0x${string}`
     }) as unknown as string;
   } catch {
     return undefined;

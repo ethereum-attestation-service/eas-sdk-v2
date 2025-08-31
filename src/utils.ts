@@ -1,6 +1,5 @@
 import EASArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/EAS.sol/EAS.json';
-import { keccak256, toUtf8Bytes } from 'ethers';
-import { Abi, decodeEventLog } from 'viem';
+import { Abi, decodeEventLog, keccak256, stringToHex } from 'viem';
 import type { TransactionReceipt } from './transaction';
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -14,9 +13,9 @@ enum Event {
 }
 
 const TOPICS = {
-  [Event.Attested]: keccak256(toUtf8Bytes('Attested(address,address,bytes32,bytes32)')),
-  [Event.Timestamped]: keccak256(toUtf8Bytes('Timestamped(bytes32,uint64)')),
-  [Event.RevokedOffchain]: keccak256(toUtf8Bytes('RevokedOffchain(address,bytes32,uint64)'))
+  [Event.Attested]: keccak256(stringToHex('Attested(address,address,bytes32,bytes32)')),
+  [Event.Timestamped]: keccak256(stringToHex('Timestamped(bytes32,uint64)')),
+  [Event.RevokedOffchain]: keccak256(stringToHex('RevokedOffchain(address,bytes32,uint64)'))
 };
 
 const getDataFromReceipt = (receipt: TransactionReceipt, event: Event, attribute: string): string[] => {

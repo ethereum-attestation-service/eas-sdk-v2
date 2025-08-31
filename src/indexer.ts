@@ -78,9 +78,10 @@ export class Indexer extends Base {
   public async getVersion(): Promise<string> {
     return (
       (await legacyVersion({
-        getAddress: async () => this.getAddress(),
+        getAddress: () => this.getAddress(),
         runner: { provider: this.getProvider() }
-      } as any)) ?? (await this.read<string>('version'))
+      } as unknown as { getAddress: () => Promise<string> | string; runner?: { provider?: TransactionProvider } })) ??
+      this.read<string>('version')
     );
   }
 
@@ -90,6 +91,7 @@ export class Indexer extends Base {
   }
 
   // Indexes an existing attestation
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async indexAttestation(
     { uid }: IndexAttestationOptions,
@@ -100,13 +102,14 @@ export class Indexer extends Base {
   }
 
   // Indexes multiple existing attestations
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async indexAttestations(
     { uids }: IndexAttestationsOptions,
     overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<void>> {
     const tx = this.populate('indexAttestations', [uids], overrides);
-    return new Transaction(tx, this.signer!, async () => {});
+    return new Transaction(tx, this.signer!, () => Promise.resolve(undefined));
   }
 
   public isAttestationIndexed({ uid }: IsAttestationIndexedOptions): Promise<boolean> {

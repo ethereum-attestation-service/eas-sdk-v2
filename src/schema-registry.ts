@@ -1,6 +1,5 @@
 import SchemaRegistryArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/SchemaRegistry.sol/SchemaRegistry.json';
-import { solidityPackedKeccak256 } from 'ethers';
-import type { Abi } from 'viem';
+import { encodePacked, keccak256, type Abi } from 'viem';
 import { legacyVersion } from './legacy/version';
 import {
   Base,
@@ -38,32 +37,41 @@ export class SchemaRegistry extends Base {
     const { signer } = options || {};
 
     super((SchemaRegistryArtifact as { abi: Abi }).abi as Abi, address, signer);
+
+    (this.contract as unknown as { getAddress: () => string; runner: { provider?: TransactionProvider } }) = {
+      getAddress: () => this.getAddress(),
+      runner: { provider: this.getProvider() }
+    };
   }
 
   // Returns the version of the contract
   public async getVersion(): Promise<string> {
     return (
       (await legacyVersion({
-        getAddress: async () => this.getAddress(),
+        getAddress: () => this.getAddress(),
         runner: { provider: this.getProvider() }
-      } as any)) ?? (await this.read<string>('version'))
+      } as unknown as { getAddress: () => Promise<string> | string; runner?: { provider?: TransactionProvider } })) ??
+      this.read<string>('version')
     );
   }
 
   // Returns a schema UID
-  public static getSchemaUID(schema: string, resolverAddress: string, revocable: boolean) {
-    return solidityPackedKeccak256(['string', 'address', 'bool'], [schema, resolverAddress, revocable]);
+  public static getSchemaUID(schema: string, resolverAddress: string, revocable: boolean): `0x${string}` {
+    return keccak256(
+      encodePacked(['string', 'address', 'bool'], [schema, resolverAddress as `0x${string}`, revocable])
+    );
   }
 
   // Registers a new schema and returns its UID
+  // eslint-disable-next-line require-await
   @RequireSigner
   public async register(
     { schema, resolverAddress = ZERO_ADDRESS, revocable = true }: RegisterSchemaParams,
-    overrides?: Partial<Parameters<Transaction['estimateGas']>>[0]
+    overrides?: Partial<Parameters<Transaction<string>['estimateGas']>>[0]
   ): Promise<Transaction<string>> {
-    const tx = this.populate('register', [schema, resolverAddress, revocable], overrides as any);
-    return new Transaction(tx, this.signer!, async (_receipt: TransactionReceipt) =>
-      SchemaRegistry.getSchemaUID(schema, resolverAddress, revocable)
+    const tx = this.populate('register', [schema, resolverAddress, revocable], overrides as unknown as object);
+    return new Transaction(tx, this.signer!, (_receipt: TransactionReceipt) =>
+      Promise.resolve(SchemaRegistry.getSchemaUID(schema, resolverAddress, revocable))
     );
   }
 

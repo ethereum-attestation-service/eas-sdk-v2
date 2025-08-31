@@ -136,10 +136,15 @@ export class Base {
   protected readonly abi: Abi;
   protected readonly address: string;
   protected signer?: TransactionSigner | TransactionProvider;
+  public contract: { getAddress: () => string; runner: { provider?: TransactionProvider } };
 
   constructor(abi: Abi, address: string, signer?: TransactionSigner | TransactionProvider) {
     this.abi = abi;
     this.address = address;
+    this.contract = {
+      getAddress: () => this.getAddress(),
+      runner: { provider: undefined }
+    };
     if (signer) {
       this.connect(signer);
     }
@@ -152,6 +157,8 @@ export class Base {
   // Connects the API to a specific signer or provider
   public connect(signer: TransactionSigner | TransactionProvider) {
     this.signer = signer;
+    // Keep the test-facing shim in sync
+    this.contract.runner.provider = this.getProvider();
     return this;
   }
 
@@ -160,27 +167,36 @@ export class Base {
   }
 
   // Generic read using this contract's ABI
-  protected async read<TResult>(functionName: string, args: unknown[] = []): Promise<TResult> {
+  protected async read<TResult>(
+    functionName: string,
+    args: unknown[] = [],
+    overrides: Partial<TransactionRequest> = {}
+  ): Promise<TResult> {
     const provider = this.getProvider();
     if (!provider) {
       throw new Error('provider was not set');
     }
 
     const data = encodeFunctionData({ abi: this.abi, functionName, args });
-    const raw = await provider.call({ to: this.address, data });
-    return decodeFunctionResult({ abi: this.abi, functionName, data: raw }) as TResult;
+    const raw = await provider.call({ to: this.address, data, ...overrides });
+    return decodeFunctionResult({ abi: this.abi, functionName, data: raw as `0x${string}` }) as TResult;
   }
 
   // Read using a custom ABI fragment (useful for legacy-specific queries)
-  protected async readWithAbi<TResult>(abi: Abi, functionName: string, args: unknown[] = []): Promise<TResult> {
+  protected async readWithAbi<TResult>(
+    abi: Abi,
+    functionName: string,
+    args: unknown[] = [],
+    overrides: Partial<TransactionRequest> = {}
+  ): Promise<TResult> {
     const provider = this.getProvider();
     if (!provider) {
       throw new Error('provider was not set');
     }
 
     const data = encodeFunctionData({ abi, functionName, args });
-    const raw = await provider.call({ to: this.address, data });
-    return decodeFunctionResult({ abi, functionName, data: raw }) as TResult;
+    const raw = await provider.call({ to: this.address, data, ...overrides });
+    return decodeFunctionResult({ abi, functionName, data: raw as `0x${string}` }) as TResult;
   }
 
   // Create a transaction request for a contract write call

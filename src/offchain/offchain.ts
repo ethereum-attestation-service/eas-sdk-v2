@@ -1,4 +1,4 @@
-import { AbiCoder, hexlify, keccak256, randomBytes, solidityPackedKeccak256, toUtf8Bytes } from 'ethers';
+import { bytesToHex, encodeAbiParameters, encodePacked, keccak256, stringToHex, toBytes } from 'viem';
 import { EAS } from '../eas';
 import { ZERO_ADDRESS, ZERO_BYTES32 } from '../utils';
 import {
@@ -170,13 +170,13 @@ export class Offchain extends TypedDataHandler {
 
   public getDomainSeparator() {
     return keccak256(
-      AbiCoder.defaultAbiCoder().encode(
-        ['bytes32', 'bytes32', 'uint256', 'address'],
+      encodeAbiParameters(
+        [{ type: 'bytes32' }, { type: 'bytes32' }, { type: 'uint256' }, { type: 'address' }],
         [
-          keccak256(toUtf8Bytes(this.signingType.domain)),
-          keccak256(toUtf8Bytes(this.config.version)),
+          keccak256(stringToHex(this.signingType.domain, { size: 32 }) as `0x${string}`),
+          keccak256(stringToHex(this.config.version, { size: 32 }) as `0x${string}`),
           this.config.chainId,
-          this.config.address
+          this.config.address as `0x${string}`
         ]
       )
     );
@@ -200,7 +200,9 @@ export class Offchain extends TypedDataHandler {
 
     // If no salt was provided - generate a random salt.
     if (this.version >= OffchainAttestationVersion.Version2 && !typedData.salt) {
-      typedData.salt = hexlify(randomBytes(SALT_SIZE));
+      const rand = new Uint8Array(SALT_SIZE);
+      crypto.getRandomValues(rand);
+      typedData.salt = bytesToHex(rand);
     }
 
     const signedRequest = await this.signTypedDataRequest<EIP712MessageTypes, OffchainAttestationTypedData>(
@@ -221,12 +223,13 @@ export class Offchain extends TypedDataHandler {
 
         // Verify the offchain attestation onchain by simulating a contract call to attest. Since onchain verification
         // makes sure that any referenced attestations exist, we will set refUID to ZERO_BYTES32.
-        await this.eas.contract.attest.staticCall(
+        // Simulate onchain attest call (read-only) using EAS helper
+        await this.eas.simulateAttest(
           {
             schema,
             data: { recipient, expirationTime, revocable, refUID: params.refUID || ZERO_BYTES32, data, value: 0 }
           },
-          { from: signer }
+          undefined
         );
       } catch (e: unknown) {
         throw new Error(`Unable to verify offchain attestation with: ${e}`);
@@ -300,56 +303,72 @@ export class Offchain extends TypedDataHandler {
   ) {
     switch (version) {
       case OffchainAttestationVersion.Legacy:
-        return solidityPackedKeccak256(
-          ['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
-          [hexlify(toUtf8Bytes(schema)), recipient, ZERO_ADDRESS, time, expirationTime, revocable, refUID, data, 0]
+        return keccak256(
+          encodePacked(
+            ['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
+            [
+              bytesToHex(toBytes(schema)) as `0x${string}`,
+              recipient as `0x${string}`,
+              ZERO_ADDRESS as `0x${string}`,
+              time,
+              expirationTime,
+              revocable,
+              refUID as `0x${string}`,
+              data as `0x${string}`,
+              0
+            ]
+          )
         );
 
       case OffchainAttestationVersion.Version1:
-        return solidityPackedKeccak256(
-          ['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
-          [
-            version,
-            hexlify(toUtf8Bytes(schema)),
-            recipient,
-            ZERO_ADDRESS,
-            time,
-            expirationTime,
-            revocable,
-            refUID,
-            data,
-            0
-          ]
+        return keccak256(
+          encodePacked(
+            ['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
+            [
+              version,
+              bytesToHex(toBytes(schema)) as `0x${string}`,
+              recipient as `0x${string}`,
+              ZERO_ADDRESS as `0x${string}`,
+              time,
+              expirationTime,
+              revocable,
+              refUID as `0x${string}`,
+              data as `0x${string}`,
+              0
+            ]
+          )
         );
 
       case OffchainAttestationVersion.Version2:
-        return solidityPackedKeccak256(
-          [
-            'uint16',
-            'bytes',
-            'address',
-            'address',
-            'uint64',
-            'uint64',
-            'bool',
-            'bytes32',
-            'bytes',
-            'bytes32',
-            'uint32'
-          ],
-          [
-            version,
-            hexlify(toUtf8Bytes(schema)),
-            recipient,
-            ZERO_ADDRESS,
-            time,
-            expirationTime,
-            revocable,
-            refUID,
-            data,
-            salt,
-            0
-          ]
+        return keccak256(
+          encodePacked(
+            [
+              'uint16',
+              'bytes',
+              'address',
+              'address',
+              'uint64',
+              'uint64',
+              'bool',
+              'bytes32',
+              'bytes',
+              'bytes32',
+              'uint32'
+            ],
+            [
+              version,
+              bytesToHex(toBytes(schema)) as `0x${string}`,
+              recipient as `0x${string}`,
+              ZERO_ADDRESS as `0x${string}`,
+              time,
+              expirationTime,
+              revocable,
+              refUID as `0x${string}`,
+              data as `0x${string}`,
+              salt as `0x${string}`,
+              0
+            ]
+          )
         );
 
       default:
