@@ -136,7 +136,7 @@ export class Base {
   protected readonly abi: Abi;
   protected readonly address: string;
   protected signer?: TransactionSigner | TransactionProvider;
-  public contract: { getAddress: () => string; runner: { provider?: TransactionProvider } };
+  protected contract: { getAddress: () => string; runner: { provider?: TransactionProvider } };
 
   constructor(abi: Abi, address: string, signer?: TransactionSigner | TransactionProvider) {
     this.abi = abi;
@@ -157,8 +157,9 @@ export class Base {
   // Connects the API to a specific signer or provider
   public connect(signer: TransactionSigner | TransactionProvider) {
     this.signer = signer;
-    // Keep the test-facing shim in sync
+
     this.contract.runner.provider = this.getProvider();
+
     return this;
   }
 

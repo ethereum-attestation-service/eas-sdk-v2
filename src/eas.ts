@@ -131,8 +131,6 @@ export class EAS extends Base {
     if (proxy) {
       this.proxy = proxy;
     }
-
-    (this.contract as unknown as { version: () => Promise<string> }).version = () => this.read<string>('version');
   }
 
   // Connects the API to a specific signer
@@ -262,6 +260,7 @@ export class EAS extends Base {
     overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<string>> {
     const isLegacy = await this.isLegacyContract();
+    /* eslint-disable indent */
     const args = isLegacy
       ? [{ schema, data: { recipient, expirationTime, revocable, refUID, data, value }, signature, attester }]
       : [
@@ -273,6 +272,7 @@ export class EAS extends Base {
             deadline
           }
         ];
+    /* eslint-enable indent */
 
     const tx = isLegacy
       ? this.populateWithAbi(this.legacyAbi, 'attestByDelegation', args, { ...(overrides as unknown as object), value })
@@ -344,12 +344,14 @@ export class EAS extends Base {
     }, 0n);
 
     const args = [multiAttestationRequests];
+    /* eslint-disable indent */
     const tx = isLegacy
       ? this.populateWithAbi(this.legacyAbi, 'multiAttestByDelegation', args, {
           ...(overrides as unknown as object),
           value: requestedValue
         })
       : this.populate('multiAttestByDelegation', args, { ...(overrides as unknown as object), value: requestedValue });
+    /* eslint-enable indent */
 
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
       Promise.resolve(getUIDsFromAttestReceipt(receipt))
@@ -434,13 +436,14 @@ export class EAS extends Base {
     }, 0n);
 
     const args = [multiRevocationRequests];
+    /* eslint-disable indent */
     const tx = isLegacy
       ? this.populateWithAbi(this.legacyAbi, 'multiRevokeByDelegation', args, {
           ...(overrides as unknown as object),
           value: requestedValue
         })
       : this.populate('multiRevokeByDelegation', args, { ...(overrides as unknown as object), value: requestedValue });
-
+    /* eslint-enable indent */
     return new Transaction(tx, this.signer!, async () => {});
   }
 

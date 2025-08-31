@@ -37,11 +37,6 @@ export class SchemaRegistry extends Base {
     const { signer } = options || {};
 
     super((SchemaRegistryArtifact as { abi: Abi }).abi as Abi, address, signer);
-
-    (this.contract as unknown as { getAddress: () => string; runner: { provider?: TransactionProvider } }) = {
-      getAddress: () => this.getAddress(),
-      runner: { provider: this.getProvider() }
-    };
   }
 
   // Returns the version of the contract
@@ -67,7 +62,7 @@ export class SchemaRegistry extends Base {
   @RequireSigner
   public async register(
     { schema, resolverAddress = ZERO_ADDRESS, revocable = true }: RegisterSchemaParams,
-    overrides?: Partial<Parameters<Transaction<string>['estimateGas']>>[0]
+    overrides?: Partial<import('./transaction').TransactionRequest>
   ): Promise<Transaction<string>> {
     const tx = this.populate('register', [schema, resolverAddress, revocable], overrides as unknown as object);
     return new Transaction(tx, this.signer!, (_receipt: TransactionReceipt) =>

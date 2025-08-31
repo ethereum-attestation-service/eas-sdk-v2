@@ -218,7 +218,7 @@ export class SchemaEncoder {
 
   public static encodeQmHash(hash: string): string {
     const a = CID.parse(hash);
-    return encodeAbiParameters([{ type: BYTES32 }], [a.multihash.digest]);
+    return encodeAbiParameters([{ type: BYTES32 }], [a.multihash.digest as unknown as `0x${string}`]);
   }
 
   public static decodeQmHash(bytes32: `0x${string}`): string {
@@ -245,7 +245,10 @@ export class SchemaEncoder {
 
     try {
       const decodedHash = CID.parse(val);
-      const encoded = encodeAbiParameters([{ type: BYTES32 }], [decodedHash.multihash.digest]);
+      const encoded = encodeAbiParameters(
+        [{ type: BYTES32 }],
+        [decodedHash.multihash.digest as unknown as `0x${string}`]
+      );
 
       return encoded;
     } catch {

@@ -77,7 +77,7 @@ describe('EAS API', () => {
     for (const partialSignerType of [PartialSignerType.NoSigner, PartialSignerType.Provider]) {
       context(partialSignerType, () => {
         beforeEach(async () => {
-          const easContract = await Contracts.EAS.deploy(await schemaRegistry.contract.getAddress());
+          const easContract = await Contracts.EAS.deploy(await schemaRegistry.getAddress());
           const proxyContract = await Contracts.EIP712Proxy.deploy(await easContract.getAddress(), EIP712_PROXY_NAME);
 
           switch (partialSignerType) {
@@ -307,7 +307,7 @@ describe('EAS API', () => {
         switch (version) {
           case EASVersion.Legacy:
             {
-              const easContract = await Contracts.EASLegacy.deploy(await schemaRegistry.contract.getAddress());
+              const easContract = await Contracts.EASLegacy.deploy(await schemaRegistry.getAddress());
               eas = new EAS(await easContract.getAddress(), { signer: sender });
             }
 
@@ -315,7 +315,7 @@ describe('EAS API', () => {
 
           case EASVersion.Version1:
             {
-              const easContract = await Contracts.EAS.deploy(await schemaRegistry.contract.getAddress());
+              const easContract = await Contracts.EAS.deploy(await schemaRegistry.getAddress());
               const proxyContract = await Contracts.EIP712Proxy.deploy(
                 await easContract.getAddress(),
                 EIP712_PROXY_NAME
@@ -335,9 +335,9 @@ describe('EAS API', () => {
 
       describe('construction', () => {
         it('should properly create an EAS API', async () => {
-          expect(eas.contract.runner?.provider).not.to.be.null;
+          expect(eas.getProvider()).not.to.be.null;
 
-          expect(await eas.getVersion()).to.equal(await eas.contract.version());
+          expect(await eas.getVersion()).to.equal(await eas.getVersion());
         });
       });
 
@@ -723,7 +723,9 @@ describe('EAS API', () => {
               : 'with default fees',
             () => {
               const overrides =
-                maxPriorityFeePerGas && maxFeePerGas ? { maxFeePerGas, maxPriorityFeePerGas } : undefined;
+                maxPriorityFeePerGas && maxFeePerGas
+                  ? { maxFeePerGas: BigInt(maxFeePerGas), maxPriorityFeePerGas: BigInt(maxPriorityFeePerGas) }
+                  : undefined;
 
               it('should timestamp a single data', async () => {
                 const tx = await eas.timestamp(data1, overrides);
@@ -1075,7 +1077,9 @@ describe('EAS API', () => {
                 : 'with default fees',
               () => {
                 const overrides =
-                  maxPriorityFeePerGas && maxFeePerGas ? { maxFeePerGas, maxPriorityFeePerGas } : undefined;
+                  maxPriorityFeePerGas && maxFeePerGas
+                    ? { maxFeePerGas: BigInt(maxFeePerGas), maxPriorityFeePerGas: BigInt(maxPriorityFeePerGas) }
+                    : undefined;
 
                 it('should revoke a single data', async () => {
                   const tx = await eas.revokeOffchain(data1, overrides);
