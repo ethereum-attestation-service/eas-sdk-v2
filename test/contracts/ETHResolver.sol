@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.19;
+
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+
+import { SchemaResolver } from "@ethereum-attestation-service/eas-contracts/contracts/resolver/SchemaResolver.sol";
+import { IEAS, Attestation } from "@ethereum-attestation-service/eas-contracts/contracts/IEAS.sol";
+
+/// @title ETHResolver
+/// @notice A sample schema resolver that pays attesters (and expects the payment to be returned during revocations)
+contract ETHResolver is SchemaResolver {
+    using Address for address payable;
+
+    error InvalidValue();
+
+    event Paid(address indexed attester, uint256 value);
+    event Refunded(address indexed revoker, uint256 value);
+
+    uint256 private immutable _incentive;
+
+    constructor(IEAS eas, uint256 incentive) SchemaResolver(eas) {
+        _incentive = incentive;
+    }
+
+    function isPayable() public pure override returns (bool) {
+        return true;
+    }
+
+    function onAttest(Attestation calldata attestation, uint256 /*value*/) internal virtual override returns (bool) {
+        payable(attestation.attester).transfer(_incentive);
+
+        emit Paid({ attester: attestation.attester, value: _incentive });
+
+        return true;
+    }
+
+    function onRevoke(Attestation calldata attestation, uint256 value) internal virtual override returns (bool) {
+        if (value < _incentive) {
+            return false;
+        }
+
+        if (value > _incentive) {
+            payable(address(attestation.attester)).sendValue(value - _incentive);
+        }
+
+        emit Refunded({ revoker: attestation.attester, value: _incentive });
+
+        return true;
+    }
+}
