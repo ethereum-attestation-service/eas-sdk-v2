@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  test:
+    name: Test
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install PNPM
+        uses: pnpm/action-setup@v4
+        id: pnpm-install
+        with:
+          version: 9
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install SDK dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install SDK test dependencies
+        run: pnpm -C test install --frozen-lockfile
+
+      - name: Build (ESM & CommonJS)
+        run: pnpm build:all
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
