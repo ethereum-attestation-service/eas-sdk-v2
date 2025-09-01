@@ -65,10 +65,12 @@ export function RequireProxy(
   _propertyKey: string,
   descriptor: PropertyDescriptor
 ): PropertyDescriptor;
+
 export function RequireProxy<TFn extends (this: unknown, ...args: unknown[]) => unknown>(
   value: TFn,
   _context: ClassMethodDecoratorContext
 ): TFn;
+
 export function RequireProxy(...args: unknown[]): unknown {
   // Standard decorator: (value, context)
   if (args.length === 2) {
