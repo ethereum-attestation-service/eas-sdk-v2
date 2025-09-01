@@ -179,6 +179,27 @@ class TxClientAdapter {
   }
 
   public static adaptSignerOrProvider(input: SignerOrProvider): TransactionSigner | TransactionProvider {
+    // viem WalletClient: has request() and sendTransaction()
+    if (
+      typeof (input as { request?: unknown }).request === 'function' &&
+      typeof (input as { sendTransaction?: unknown }).sendTransaction === 'function'
+    ) {
+      const wallet = input as WalletClient & { account?: Address | undefined };
+      if (wallet.account) {
+        return this.createSignerAdapter(wallet);
+      }
+      return this.createProviderFromWallet(wallet);
+    }
+
+    // viem PublicClient: has request() and getChainId()
+    if (
+      typeof (input as { request?: unknown }).request === 'function' &&
+      typeof (input as { getChainId?: unknown }).getChainId === 'function'
+    ) {
+      return this.createProviderAdapter(input as PublicClient);
+    }
+
+    // Generic shapes
     const maybe = input as TransactionSigner | TransactionProvider;
     if (typeof (maybe as TransactionSigner).sendTransaction === 'function') {
       return maybe as TransactionSigner;
@@ -189,10 +210,8 @@ class TxClientAdapter {
     ) {
       return maybe as TransactionProvider;
     }
-    if ((input as PublicClient).request && (input as PublicClient).getChainId) {
-      return this.createProviderAdapter(input as PublicClient);
-    }
-    return this.createSignerAdapter(input as WalletClient);
+
+    throw new Error('Unsupported signer/provider input');
   }
 }
 

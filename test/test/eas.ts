@@ -1,6 +1,6 @@
 import { encodeBytes32String, hexlify, Signer, solidityPackedKeccak256, toUtf8Bytes } from 'ethers';
 import { ethers, network } from 'hardhat';
-import { createPublicClient, custom } from 'viem';
+import { createWalletClient, custom } from 'viem';
 import { EAS, NO_EXPIRATION } from '../../src/eas';
 import { EIP712Proxy } from '../../src/eip712-proxy';
 import {
@@ -107,7 +107,13 @@ describe('EAS API', () => {
 
             case PartialSignerType.ViemProvider:
               {
-                const viemProvider = createPublicClient({ transport: custom(network.provider as unknown as { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> }) });
+                const viemProvider = createWalletClient({
+                  transport: custom(
+                    network.provider as unknown as {
+                      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+                    }
+                  )
+                });
                 const proxy = new EIP712Proxy(await proxyContract.getAddress(), {
                   signer: viemProvider
                 });
@@ -1420,59 +1426,59 @@ describe('EAS API', () => {
               const response = await delegatedProxy.signDelegatedProxyRevocation(params, sender);
 
               // Invalid attester
-              expect(() => delegatedProxy.verifyDelegatedProxyRevocationSignature(ZERO_ADDRESS, response)).to.throw(
+              expect(delegatedProxy.verifyDelegatedProxyRevocationSignature(ZERO_ADDRESS, response)).to.be.rejectedWith(
                 InvalidAddress
               );
 
               // Invalid domains
               const { domain } = response;
 
-              await expect(() =>
+              await expect(
                 delegatedProxy.verifyDelegatedProxyRevocationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, chainId: domain.chainId + 100n } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegatedProxy.verifyDelegatedProxyRevocationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, name: `BAD${domain.name}BAD` } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegatedProxy.verifyDelegatedProxyRevocationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, verifyingContract: ZERO_ADDRESS } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegatedProxy.verifyDelegatedProxyRevocationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, version: '9999.9999.9999' } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
               // Invalid types
-              await expect(() =>
+              await expect(
                 delegatedProxy.verifyDelegatedProxyRevocationSignature(senderAddress, {
                   ...response,
                   ...{
                     types: { [response.primaryType]: [{ name: 'schema', type: 'bytes32' }] }
                   }
                 })
-              ).to.throw(InvalidTypes);
+              ).to.be.rejectedWith(InvalidTypes);
 
-              await expect(() =>
+              await expect(
                 delegatedProxy.verifyDelegatedProxyRevocationSignature(senderAddress, {
                   ...response,
                   ...{
                     types: { BAD: response.types.values }
                   }
                 })
-              ).to.throw(InvalidTypes);
+              ).to.be.rejectedWith(InvalidTypes);
             });
           });
         });

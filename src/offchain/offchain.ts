@@ -285,7 +285,21 @@ export class Offchain extends TypedDataHandler {
       }
     });
 
-    return result;
+    if (result) {
+      return true;
+    }
+
+    // Fallback: verify using the embedded types in the payload as-is
+    try {
+      return await this.verifyTypedDataRequestSignature(
+        attester,
+        attestation,
+        { primaryType: attestation.primaryType, types: attestation.types },
+        false
+      );
+    } catch (_e) {
+      return false;
+    }
   }
 
   private getOffchainUID(params: OffchainAttestationParams): string {
