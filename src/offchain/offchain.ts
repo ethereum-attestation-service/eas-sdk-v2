@@ -243,7 +243,10 @@ export class Offchain extends TypedDataHandler {
     };
   }
 
-  public async verifyOffchainAttestationSignature(attester: string, attestation: SignedOffchainAttestation): Promise<boolean> {
+  public async verifyOffchainAttestationSignature(
+    attester: string,
+    attestation: SignedOffchainAttestation
+  ): Promise<boolean> {
     const typeCount = this.verificationTypes.length;
 
     const asyncSome = async <T>(arr: T[], cb: (value: T, index: number) => Promise<boolean>): Promise<boolean> => {
@@ -339,18 +342,7 @@ export class Offchain extends TypedDataHandler {
       case OffchainAttestationVersion.Version1:
         return keccak256(
           encodePacked(
-            [
-              'uint16',
-              'bytes32',
-              'address',
-              'address',
-              'uint64',
-              'uint64',
-              'bool',
-              'bytes32',
-              'bytes',
-              'uint32'
-            ],
+            ['uint16', 'bytes32', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
             [
               version,
               schema as `0x${string}`,

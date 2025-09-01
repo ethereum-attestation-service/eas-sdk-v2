@@ -1,4 +1,11 @@
-import { Abi, decodeFunctionResult, encodeFunctionData, type Address, type PublicClient, type WalletClient } from 'viem';
+import {
+  Abi,
+  decodeFunctionResult,
+  encodeFunctionData,
+  type Address,
+  type PublicClient,
+  type WalletClient
+} from 'viem';
 import { WaitableTxResponse } from './utils';
 
 // Minimal transaction request/receipt/log shapes to avoid depending on ethers types
@@ -66,7 +73,7 @@ class TxClientAdapter {
     if (value === undefined) {
       return undefined;
     }
-    return (`0x${value.toString(16)}`) as `0x${string}`;
+    return `0x${value.toString(16)}` as `0x${string}`;
   }
 
   public static toRpcTx(tx: TransactionRequest): {
@@ -158,12 +165,9 @@ class TxClientAdapter {
               walletClient as unknown as object
             );
             for (;;) {
-              const r = await request<
-                | null
-                | {
-                    logs: { topics: string[]; data: string }[];
-                  }
-              >({
+              const r = await request<null | {
+                logs: { topics: string[]; data: string }[];
+              }>({
                 method: 'eth_getTransactionReceipt',
                 params: [hash]
               });
