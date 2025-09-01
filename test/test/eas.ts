@@ -1350,59 +1350,59 @@ describe('EAS API', () => {
                 const response = await delegatedProxy.signDelegatedProxyAttestation(params, sender);
 
                 // Invalid attester
-                expect(() => delegatedProxy.verifyDelegatedProxyAttestationSignature(ZERO_ADDRESS, response)).to.throw(
+                expect(delegatedProxy.verifyDelegatedProxyAttestationSignature(ZERO_ADDRESS, response)).to.be.rejectedWith(
                   InvalidAddress
                 );
 
                 // Invalid domains
                 const { domain } = response;
 
-                await expect(() =>
+                await expect(
                   delegatedProxy.verifyDelegatedProxyAttestationSignature(senderAddress, {
                     ...response,
                     ...{ domain: { ...domain, chainId: domain.chainId + 100n } }
                   })
-                ).to.throw(InvalidDomain);
+                ).to.be.rejectedWith(InvalidDomain);
 
-                await expect(() =>
+                await expect(
                   delegatedProxy.verifyDelegatedProxyAttestationSignature(senderAddress, {
                     ...response,
                     ...{ domain: { ...domain, name: `BAD${domain.name}BAD` } }
                   })
-                ).to.throw(InvalidDomain);
+                ).to.be.rejectedWith(InvalidDomain);
 
-                await expect(() =>
+                await expect(
                   delegatedProxy.verifyDelegatedProxyAttestationSignature(senderAddress, {
                     ...response,
                     ...{ domain: { ...domain, verifyingContract: ZERO_ADDRESS } }
                   })
-                ).to.throw(InvalidDomain);
+                ).to.be.rejectedWith(InvalidDomain);
 
-                await expect(() =>
+                await expect(
                   delegatedProxy.verifyDelegatedProxyAttestationSignature(senderAddress, {
                     ...response,
                     ...{ domain: { ...domain, version: '9999.9999.9999' } }
                   })
-                ).to.throw(InvalidDomain);
+                ).to.be.rejectedWith(InvalidDomain);
 
                 // Invalid types
-                await expect(() =>
+                await expect(
                   delegatedProxy.verifyDelegatedProxyAttestationSignature(senderAddress, {
                     ...response,
                     ...{
                       types: { [response.primaryType]: [{ name: 'schema', type: 'bytes32' }] }
                     }
                   })
-                ).to.throw(InvalidTypes);
+                ).to.be.rejectedWith(InvalidTypes);
 
-                await expect(() =>
+                await expect(
                   delegatedProxy.verifyDelegatedProxyAttestationSignature(senderAddress, {
                     ...response,
                     ...{
                       types: { BAD: response.types.values }
                     }
                   })
-                ).to.throw(InvalidTypes);
+                ).to.be.rejectedWith(InvalidTypes);
               });
             });
           });
