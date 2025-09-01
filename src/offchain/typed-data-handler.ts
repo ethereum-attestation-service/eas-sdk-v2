@@ -218,14 +218,12 @@ export abstract class TypedDataHandler {
     if (typeKeys.includes('Attest') && !typeKeys.includes('Attestation')) {
       altPrimary = 'Attestation';
       altTypes = {
-        Attestation:
-          (response.types as unknown as Record<string, Array<{ name: string; type: string }>>).Attest
+        Attestation: (response.types as unknown as Record<string, Array<{ name: string; type: string }>>).Attest
       } as unknown as Record<string, Array<{ name: string; type: string }>>;
     } else if (typeKeys.includes('Attestation') && !typeKeys.includes('Attest')) {
       altPrimary = 'Attest';
       altTypes = {
-        Attest:
-          (response.types as unknown as Record<string, Array<{ name: string; type: string }>>).Attestation
+        Attest: (response.types as unknown as Record<string, Array<{ name: string; type: string }>>).Attestation
       } as unknown as Record<string, Array<{ name: string; type: string }>>;
     }
 
@@ -249,7 +247,7 @@ export abstract class TypedDataHandler {
     const flippedSerialized = concatHex([
       signature.r as `0x${string}`,
       signature.s as `0x${string}`,
-      (`0x${flippedV.toString(16).padStart(2, '0')}`) as `0x${string}`
+      `0x${flippedV.toString(16).padStart(2, '0')}` as `0x${string}`
     ]);
     const flippedRecovered = await recoverAddress({ hash, signature: flippedSerialized });
     const flippedNormalized = getAddress(flippedRecovered as unknown as string);
