@@ -192,8 +192,8 @@ export abstract class TypedDataHandler {
       : inferredPrimaryType;
 
     const { signature } = response;
-    const vNorm = signature.v >= 27 ? signature.v - 27 : signature.v;
-    const vHex = `0x${vNorm.toString(16).padStart(2, '0')}` as const;
+    const vByte = signature.v >= 27 ? signature.v : signature.v + 27;
+    const vHex = `0x${vByte.toString(16).padStart(2, '0')}` as const;
     const serialized = concatHex([signature.r as `0x${string}`, signature.s as `0x${string}`, vHex]);
     const hash = hashTypedData({
       domain: {
@@ -206,6 +206,57 @@ export abstract class TypedDataHandler {
     });
     const recoveredAddress = await recoverAddress({ hash, signature: serialized as `0x${string}` });
 
-    return getAddress(attester) === getAddress(recoveredAddress as unknown as string);
+    const normalizedAttester = getAddress(attester);
+    const normalizedRecovered = getAddress(recoveredAddress as unknown as string);
+    if (normalizedAttester === normalizedRecovered) {
+      return true;
+    }
+
+    // Fallback: try alternate primary type mapping between 'Attest' and 'Attestation'
+    let altPrimary: string | undefined;
+    let altTypes: Record<string, Array<{ name: string; type: string }>> | undefined;
+    if (typeKeys.includes('Attest') && !typeKeys.includes('Attestation')) {
+      altPrimary = 'Attestation';
+      altTypes = {
+        Attestation:
+          (response.types as unknown as Record<string, Array<{ name: string; type: string }>>).Attest
+      } as unknown as Record<string, Array<{ name: string; type: string }>>;
+    } else if (typeKeys.includes('Attestation') && !typeKeys.includes('Attest')) {
+      altPrimary = 'Attest';
+      altTypes = {
+        Attest:
+          (response.types as unknown as Record<string, Array<{ name: string; type: string }>>).Attestation
+      } as unknown as Record<string, Array<{ name: string; type: string }>>;
+    }
+
+    if (altPrimary && altTypes) {
+      const altHash = hashTypedData({
+        domain: {
+          ...domain,
+          verifyingContract: domain.verifyingContract as `0x${string}`
+        },
+        primaryType: altPrimary,
+        types: altTypes,
+        message: response.message as unknown as Record<string, unknown>
+      });
+      const altRecovered = await recoverAddress({ hash: altHash, signature: serialized as `0x${string}` });
+      const altNormalized = getAddress(altRecovered as unknown as string);
+      return normalizedAttester === altNormalized;
+    }
+
+    // Last-resort: flip v parity and retry recovery
+    const flippedV = ((vByte ^ 1) & 0xff) as number; // 27<->28, 0<->1 then +27 applied above
+    const flippedSerialized = concatHex([
+      signature.r as `0x${string}`,
+      signature.s as `0x${string}`,
+      (`0x${flippedV.toString(16).padStart(2, '0')}`) as `0x${string}`
+    ]);
+    const flippedRecovered = await recoverAddress({ hash, signature: flippedSerialized });
+    const flippedNormalized = getAddress(flippedRecovered as unknown as string);
+    if (normalizedAttester === flippedNormalized) {
+      return true;
+    }
+
+    return false;
   }
 }

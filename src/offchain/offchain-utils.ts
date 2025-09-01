@@ -180,7 +180,7 @@ export const uncompactOffchainAttestationPackage = (
       signature: {
         r: compacted[3],
         s: compacted[4],
-        v: compacted[5]
+        v: compacted[5] === 27 || compacted[5] === 28 ? (compacted[5] - 27) : compacted[5]
       },
       uid: compacted[7],
       message: {

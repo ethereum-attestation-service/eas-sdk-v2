@@ -42,8 +42,15 @@ export class SchemaEncoder {
     this.schema = [];
 
     const fixedSchema = schema.replace(new RegExp(`${IPFS_HASH} (\\S+)`, 'g'), `${BYTES32} $1`);
+    // Normalize excessive whitespace to satisfy abitype parser
+    const normalizedSchema = fixedSchema
+      .replace(/\s+/g, ' ')
+      .replace(/\(\s+/g, '(')
+      .replace(/\s+\)/g, ')')
+      .replace(/\s*,\s*/g, ', ')
+      .trim();
     // Use viem to parse ABI parameter list; throws on invalid schema
-    const inputs = parseAbiParameters(fixedSchema) as Array<{
+    const inputs = parseAbiParameters(normalizedSchema) as Array<{
       name?: string;
       type: string;
       components?: Array<{ name?: string; type: string }>;
@@ -116,17 +123,11 @@ export class SchemaEncoder {
       );
     }
 
-    return encodeAbiParameters(
-      this.signatures().map((t) => ({ type: t })),
-      data as unknown[]
-    );
+    return encodeAbiParameters(this.abiParams(), data as unknown[]);
   }
 
   public decodeData(data: string): SchemaDecodedItem[] {
-    const values = decodeAbiParameters(
-      this.signatures().map((t) => ({ type: t })),
-      data as `0x${string}`
-    ) as unknown[];
+    const values = decodeAbiParameters(this.abiParams(), data as `0x${string}`) as unknown[];
 
     return this.schema.map((s, i) => {
       const [input] = parseAbiParameters(s.signature) as Array<{
@@ -137,42 +138,40 @@ export class SchemaEncoder {
       let value = values[i];
       const components = input.components ?? [];
 
-      if (Array.isArray(value) && (value as unknown[]).length > 0 && components?.length > 0) {
-        if (Array.isArray((value as unknown[])[0])) {
+      const isTupleLike = components.length > 0;
+      const isArrayType = s.type.includes('[]') || input.type.includes('[]');
+
+      if (isTupleLike) {
+        if (isArrayType) {
+          const items = Array.isArray(value) ? (value as unknown[]) : [];
           const namedValues: Array<Array<{ name: string | undefined; type: string; value: unknown }>> = [];
-          for (const val of value as unknown as Array<unknown[]>) {
-            const namedValue: Array<{ name: string | undefined; type: string; value: unknown }> = [];
-            const rawValues = (val as unknown[]).filter((v: unknown) => typeof v !== 'object');
-
-            for (const [k, v] of rawValues.entries()) {
-              const component = components[k];
-
-              namedValue.push({ name: component.name, type: component.type, value: v });
+          for (const item of items) {
+            const fields: Array<{ name: string | undefined; type: string; value: unknown }> = [];
+            for (const [k, component] of components.entries()) {
+              const fromArray = Array.isArray(item) ? (item as unknown[])[k] : undefined;
+              const fromObject =
+                typeof item === 'object' && item !== null && (component.name ?? '') in (item as Record<string, unknown>)
+                  ? (item as Record<string, unknown>)[(component.name as string) ?? String(k)]
+                  : undefined;
+              const v = fromArray !== undefined ? fromArray : fromObject;
+              fields.push({ name: component.name, type: component.type, value: v });
             }
-
-            namedValues.push(namedValue);
+            namedValues.push(fields);
           }
-
-          value = {
-            name: s.name,
-            type: s.type,
-            value: namedValues
-          };
+          value = { name: s.name, type: s.type, value: namedValues } as unknown as SchemaItem;
         } else {
-          const namedValue: Array<{ name: string | undefined; type: string; value: unknown }> = [];
-          const rawValues = (value as unknown[]).filter((v: unknown) => typeof v !== 'object');
-
-          for (const [k, v] of rawValues.entries()) {
-            const component = components[k];
-
-            namedValue.push({ name: component.name, type: component.type, value: v });
+          const item = value as unknown;
+          const fields: Array<{ name: string | undefined; type: string; value: unknown }> = [];
+          for (const [k, component] of components.entries()) {
+            const fromArray = Array.isArray(item) ? (item as unknown[])[k] : undefined;
+            const fromObject =
+              typeof item === 'object' && item !== null && (component.name ?? '') in (item as Record<string, unknown>)
+                ? (item as Record<string, unknown>)[(component.name as string) ?? String(k)]
+                : undefined;
+            const v = fromArray !== undefined ? fromArray : fromObject;
+            fields.push({ name: component.name, type: component.type, value: v });
           }
-
-          value = {
-            name: s.name,
-            type: s.type,
-            value: namedValue
-          };
+          value = { name: s.name, type: s.type, value: fields } as unknown as SchemaItem;
         }
       } else {
         value = { name: s.name, type: s.type, value } as unknown as SchemaItem;
@@ -265,7 +264,17 @@ export class SchemaEncoder {
     }
   }
 
-  private signatures() {
-    return this.schema.map((i) => i.signature);
+  private abiParams() {
+    return this.schema.map((s) => {
+      const [input] = parseAbiParameters(s.signature) as Array<{
+        name?: string;
+        type: string;
+        components?: Array<{ name?: string; type: string }>;
+      }>;
+      if (input.type.startsWith(TUPLE_TYPE)) {
+        return { type: input.type, components: input.components ?? [] };
+      }
+      return { type: input.type };
+    });
   }
 }

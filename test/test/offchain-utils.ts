@@ -154,7 +154,7 @@ describe('offchain utils', () => {
       });
 
       describe('decode', () => {
-        it('should unzip and decode an an encoded attestation string', () => {
+        it('should unzip and decode an an encoded attestation string', async () => {
           const decoded = decodeBase64ZippedBase64(encoded);
           expect(decoded).to.not.be.null;
 
@@ -169,7 +169,7 @@ describe('offchain utils', () => {
           );
 
           expect(
-            offchain.verifyOffchainAttestationSignature(attestation.signer, decoded.sig as SignedOffchainAttestation)
+            await offchain.verifyOffchainAttestationSignature(attestation.signer, decoded.sig as SignedOffchainAttestation)
           ).to.be.true;
         });
       });

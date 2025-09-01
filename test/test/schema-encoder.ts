@@ -5,6 +5,10 @@ import chai from './helpers/chai';
 
 const { expect } = chai;
 
+const formatParamsTitle = (params: unknown) => {
+  return JSON.stringify(params, (_, v) => (typeof v === 'bigint' ? v.toString() : v));
+};
+
 describe('SchemaEncoder', () => {
   describe('construction', () => {
     for (const { schema, decodedSchema } of [
@@ -557,7 +561,7 @@ describe('SchemaEncoder', () => {
     ]) {
       for (const params of inputs) {
         context(schema, () => {
-          context(`params ${JSON.stringify(params, (_, v) => (v && v.toString()) || v)}`, () => {
+          context(`params ${formatParamsTitle(params)}`, () => {
             let schemaEncoder: SchemaEncoder;
 
             beforeEach(() => {
@@ -634,7 +638,7 @@ describe('SchemaEncoder', () => {
     ]) {
       for (const params of inputs) {
         context(schema, () => {
-          context(`params ${JSON.stringify(params, (_, v) => (v && v.toString()) || v)}`, () => {
+          context(`params ${formatParamsTitle(params)}`, () => {
             let schemaEncoder: SchemaEncoder;
 
             beforeEach(() => {
@@ -702,7 +706,7 @@ describe('SchemaEncoder', () => {
     ]) {
       for (const params of inputs) {
         context(schema, () => {
-          context(`params ${JSON.stringify(params, (_, v) => (v && v.toString()) || v)}`, () => {
+          context(`params ${formatParamsTitle(params)}`, () => {
             let schemaEncoder: SchemaEncoder;
 
             beforeEach(() => {
