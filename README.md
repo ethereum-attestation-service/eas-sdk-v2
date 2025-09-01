@@ -65,19 +65,20 @@ Import and initialize the library:
 
 ```javascript
 import { EAS, Offchain, SchemaEncoder, SchemaRegistry } from '@ethereum-attestation-service/eas-sdk-v2';
-import { ethers } from 'ethers';
+import { createPublicClient, http } from 'viem';
+import { sepolia } from 'viem/chains';
 
 export const EASContractAddress = '0xC2679fBD37d54388Ce493F1DB75320D236e1815e'; // Sepolia v0.26
 
-// Initialize the SDK with the address of the EAS Schema contract address
-const eas = new EAS(EASContractAddress);
+// Create a viem public client (read-only). For writes, pass a WalletClient instead.
+const publicClient = createPublicClient({
+  chain: sepolia,
+  transport: http('https://sepolia.infura.io/v3/YOUR_PROJECT_ID')
+});
 
-// Gets a default provider (in production use something else like infura/alchemy)
-const provider = ethers.getDefaultProvider('sepolia');
-
-// Connects an ethers style provider/signingProvider to perform read/write functions.
-// MUST be a signer to do write operations!
-eas.connect(provider);
+// Initialize the SDK with the EAS contract address and connect the client
+const eas = new EAS(EASContractAddress, { signer: publicClient });
+// or: new EAS(EASContractAddress).connect(publicClient)
 ```
 
 ### Providing a Signer or Provider (ethers & viem)
