@@ -183,6 +183,14 @@ export abstract class TypedDataHandler {
       throw new InvalidAddress();
     }
 
+    // Derive effective primary type from the provided types when needed.
+    // Some legacy payloads have a mismatch between primaryType and the key present in types (e.g. 'Attestation' vs 'Attest').
+    const typeKeys = Object.keys(response.types as unknown as Record<string, unknown>);
+    const inferredPrimaryType = (typeKeys.find((k) => k !== 'EIP712Domain') || response.primaryType) as string;
+    const effectivePrimaryType = (response.types as unknown as Record<string, unknown>)[response.primaryType]
+      ? (response.primaryType as unknown as string)
+      : inferredPrimaryType;
+
     const { signature } = response;
     const vNorm = signature.v >= 27 ? signature.v - 27 : signature.v;
     const vHex = `0x${vNorm.toString(16).padStart(2, '0')}` as const;
@@ -192,7 +200,7 @@ export abstract class TypedDataHandler {
         ...domain,
         verifyingContract: domain.verifyingContract as `0x${string}`
       },
-      primaryType: response.primaryType as unknown as string,
+      primaryType: effectivePrimaryType,
       types: response.types as unknown as Record<string, Array<{ name: string; type: string }>>,
       message: response.message as unknown as Record<string, unknown>
     });

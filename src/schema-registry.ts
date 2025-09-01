@@ -6,7 +6,7 @@ import {
   RequireSigner,
   Transaction,
   TransactionProvider,
-  TransactionSigner,
+  type SignerOrProvider,
   type TransactionOverrides,
   type TransactionReceipt
 } from './transaction';
@@ -30,7 +30,7 @@ export interface GetSchemaParams {
 }
 
 export interface SchemaRegistryOptions {
-  signer?: TransactionSigner | TransactionProvider;
+  signer?: SignerOrProvider;
 }
 
 export class SchemaRegistry extends Base {

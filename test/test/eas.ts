@@ -1,5 +1,6 @@
 import { encodeBytes32String, hexlify, Signer, solidityPackedKeccak256, toUtf8Bytes } from 'ethers';
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
+import { createPublicClient, custom } from 'viem';
 import { EAS, NO_EXPIRATION } from '../../src/eas';
 import { EIP712Proxy } from '../../src/eip712-proxy';
 import {
@@ -71,10 +72,15 @@ describe('EAS API', () => {
 
     enum PartialSignerType {
       NoSigner = 'no signer',
-      Provider = 'provider'
+      EthersProvider = 'ethers provider',
+      ViemProvider = 'viem provider'
     }
 
-    for (const partialSignerType of [PartialSignerType.NoSigner, PartialSignerType.Provider]) {
+    for (const partialSignerType of [
+      PartialSignerType.NoSigner,
+      PartialSignerType.EthersProvider,
+      PartialSignerType.ViemProvider
+    ]) {
       context(partialSignerType, () => {
         beforeEach(async () => {
           const easContract = await Contracts.EAS.deploy(await schemaRegistry.getAddress());
@@ -89,12 +95,23 @@ describe('EAS API', () => {
 
               break;
 
-            case PartialSignerType.Provider:
+            case PartialSignerType.EthersProvider:
               {
                 const proxy = new EIP712Proxy(await proxyContract.getAddress(), {
                   signer: ethers.getDefaultProvider()
                 });
                 eas = new EAS(await easContract.getAddress(), { proxy, signer: ethers.getDefaultProvider() });
+              }
+
+              break;
+
+            case PartialSignerType.ViemProvider:
+              {
+                const viemProvider = createPublicClient({ transport: custom(network.provider as unknown as { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> }) });
+                const proxy = new EIP712Proxy(await proxyContract.getAddress(), {
+                  signer: viemProvider
+                });
+                eas = new EAS(await easContract.getAddress(), { proxy, signer: viemProvider });
               }
 
               break;
@@ -361,7 +378,7 @@ describe('EAS API', () => {
                     ? `with maxPriorityFeePerGas=${maxPriorityFeePerGas.toString()}, maxFeePerGas=${maxFeePerGas.toString()} overrides`
                     : 'with default fees',
                   () => {
-                    context.only(`with ${revocable ? 'a revocable' : 'an irrevocable'} registered schema`, () => {
+                    context(`with ${revocable ? 'a revocable' : 'an irrevocable'} registered schema`, () => {
                       const schema1 = 'bool like';
                       const schema2 = 'bytes32 proposalId, bool vote';
                       let schema1Id: string;
@@ -919,68 +936,68 @@ describe('EAS API', () => {
             const attestation = await offchain.signOffchainAttestation(params, sender);
 
             // Invalid attester
-            expect(() => offchain.verifyOffchainAttestationSignature(ZERO_ADDRESS, attestation)).to.throw(
-              InvalidAddress
-            );
+            expect(
+              offchain.verifyOffchainAttestationSignature(ZERO_ADDRESS, attestation)
+            ).to.be.rejectedWith(InvalidAddress);
 
             // Invalid domains
             const { domain } = attestation;
 
-            await expect(() =>
+            expect(
               offchain.verifyOffchainAttestationSignature(senderAddress, {
                 ...attestation,
                 ...{ domain: { ...domain, chainId: domain.chainId + 100n } }
               })
-            ).to.throw(InvalidDomain);
+            ).to.be.rejectedWith(InvalidDomain);
 
-            await expect(() =>
+            expect(
               offchain.verifyOffchainAttestationSignature(senderAddress, {
                 ...attestation,
                 ...{ domain: { ...domain, verifyingContract: ZERO_ADDRESS } }
               })
-            ).to.throw(InvalidDomain);
+            ).to.be.rejectedWith(InvalidDomain);
 
-            await expect(() =>
+            expect(
               offchain.verifyOffchainAttestationSignature(senderAddress, {
                 ...attestation,
                 ...{ domain: { ...domain, name: `BAD${domain.name}BAD` } }
               })
-            ).to.throw(InvalidDomain);
+            ).to.be.rejectedWith(InvalidDomain);
 
             // Invalid version verification won't throw, due to the check not being strict, but will fail on signature
-            await expect(
-              offchain.verifyOffchainAttestationSignature(senderAddress, {
+            expect(
+              await offchain.verifyOffchainAttestationSignature(senderAddress, {
                 ...attestation,
                 ...{ domain: { ...domain, version: '9999.9999.9999' } }
               })
             ).to.be.false;
 
             // Invalid primary type
-            await expect(() =>
+            await expect(
               offchain.verifyOffchainAttestationSignature(senderAddress, {
                 ...attestation,
                 ...{ primaryType: `BAD${attestation.primaryType}BAD` }
               })
-            ).to.throw(InvalidPrimaryType);
+            ).to.be.rejectedWith(InvalidPrimaryType);
 
             // Invalid types
-            await expect(() =>
+            await expect(
               offchain.verifyOffchainAttestationSignature(senderAddress, {
                 ...attestation,
                 ...{
                   types: { [attestation.primaryType]: [{ name: 'schema', type: 'bytes32' }] }
                 }
               })
-            ).to.throw(InvalidTypes);
+            ).to.be.rejectedWith(InvalidTypes);
 
-            await expect(() =>
+            await expect(
               offchain.verifyOffchainAttestationSignature(senderAddress, {
                 ...attestation,
                 ...{
                   types: { BAD: attestation.types.values }
                 }
               })
-            ).to.throw(InvalidTypes);
+            ).to.be.rejectedWith(InvalidTypes);
           });
 
           it('should verify offchain attestations with legacy/obsoleted domains', async () => {
@@ -1008,7 +1025,7 @@ describe('EAS API', () => {
             );
 
             let attestation = await customOffchain.signOffchainAttestation(params, sender);
-            await expect(legacyOffchain.verifyOffchainAttestationSignature(senderAddress, attestation)).to.be.true;
+            expect(await legacyOffchain.verifyOffchainAttestationSignature(senderAddress, attestation)).to.be.true;
 
             // Legacy types
             for (const type of OFFCHAIN_ATTESTATION_TYPES[OffchainAttestationVersion.Legacy].slice(1)) {
@@ -1023,7 +1040,7 @@ describe('EAS API', () => {
               );
 
               attestation = await customOffchain.signOffchainAttestation(params, sender);
-              await expect(legacyOffchain.verifyOffchainAttestationSignature(senderAddress, attestation)).to.be.true;
+              expect(await legacyOffchain.verifyOffchainAttestationSignature(senderAddress, attestation)).to.be.true;
             }
           });
 
@@ -1167,59 +1184,59 @@ describe('EAS API', () => {
               const response = await delegated.signDelegatedAttestation(params, sender);
 
               // Invalid attester
-              expect(() => delegated.verifyDelegatedAttestationSignature(ZERO_ADDRESS, response)).to.throw(
-                InvalidAddress
-              );
+              await expect(
+                delegated.verifyDelegatedAttestationSignature(ZERO_ADDRESS, response)
+              ).to.be.rejectedWith(InvalidAddress);
 
               // Invalid domains
               const { domain } = response;
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedAttestationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, chainId: domain.chainId + 100n } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedAttestationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, name: `BAD${domain.name}BAD` } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedAttestationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, verifyingContract: ZERO_ADDRESS } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedAttestationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, version: '9999.9999.9999' } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
               // Invalid types
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedAttestationSignature(senderAddress, {
                   ...response,
                   ...{
                     types: { [response.primaryType]: [{ name: 'schema', type: 'bytes32' }] }
                   }
                 })
-              ).to.throw(InvalidTypes);
+              ).to.be.rejectedWith(InvalidTypes);
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedAttestationSignature(senderAddress, {
                   ...response,
                   ...{
                     types: { BAD: response.types.values }
                   }
                 })
-              ).to.throw(InvalidTypes);
+              ).to.be.rejectedWith(InvalidTypes);
             });
           });
 
@@ -1236,59 +1253,59 @@ describe('EAS API', () => {
               const response = await delegated.signDelegatedRevocation(params, sender);
 
               // Invalid attester
-              expect(() => delegated.verifyDelegatedRevocationSignature(ZERO_ADDRESS, response)).to.throw(
+              await expect(delegated.verifyDelegatedRevocationSignature(ZERO_ADDRESS, response)).to.be.rejectedWith(
                 InvalidAddress
               );
 
               // Invalid domains
               const { domain } = response;
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedRevocationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, chainId: domain.chainId + 100n } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedRevocationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, name: `BAD${domain.name}BAD` } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedRevocationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, verifyingContract: ZERO_ADDRESS } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedRevocationSignature(senderAddress, {
                   ...response,
                   ...{ domain: { ...domain, version: '9999.9999.9999' } }
                 })
-              ).to.throw(InvalidDomain);
+              ).to.be.rejectedWith(InvalidDomain);
 
               // Invalid types
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedRevocationSignature(senderAddress, {
                   ...response,
                   ...{
                     types: { [response.primaryType]: [{ name: 'schema', type: 'bytes32' }] }
                   }
                 })
-              ).to.throw(InvalidTypes);
+              ).to.be.rejectedWith(InvalidTypes);
 
-              await expect(() =>
+              await expect(
                 delegated.verifyDelegatedRevocationSignature(senderAddress, {
                   ...response,
                   ...{
                     types: { BAD: response.types.values }
                   }
                 })
-              ).to.throw(InvalidTypes);
+              ).to.be.rejectedWith(InvalidTypes);
             });
           });
         });

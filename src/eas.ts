@@ -25,7 +25,7 @@ import {
   RequireSigner,
   Transaction,
   TransactionProvider,
-  TransactionSigner,
+  type SignerOrProvider,
   type TransactionOverrides,
   type TransactionReceipt
 } from './transaction';
@@ -55,7 +55,7 @@ export interface Attestation {
 }
 
 export interface EASOptions {
-  signer?: TransactionSigner | TransactionProvider;
+  signer?: SignerOrProvider;
   proxy?: EIP712Proxy;
 }
 
@@ -118,7 +118,7 @@ export class EAS extends Base {
   }
 
   // Connects the API to a specific signer
-  public connect(signer: TransactionSigner | TransactionProvider) {
+  public connect(signer: SignerOrProvider) {
     delete this.delegated;
     delete this.offchain;
 

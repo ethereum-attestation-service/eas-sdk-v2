@@ -14,14 +14,14 @@ import {
   RequireSigner,
   Transaction,
   TransactionProvider,
-  TransactionSigner,
+  type SignerOrProvider,
   type TransactionOverrides,
   type TransactionReceipt
 } from './transaction';
 import { getUIDsFromAttestReceipt, ZERO_BYTES32 } from './utils';
 
 export interface EIP712ProxyOptions {
-  signer?: TransactionSigner | TransactionProvider;
+  signer?: SignerOrProvider;
 }
 
 export class EIP712Proxy extends Base {
@@ -34,7 +34,7 @@ export class EIP712Proxy extends Base {
   }
 
   // Connects the API to a specific signer
-  public connect(signer: TransactionSigner | TransactionProvider) {
+  public connect(signer: SignerOrProvider) {
     delete this.delegated;
 
     super.connect(signer);

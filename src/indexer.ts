@@ -7,12 +7,12 @@ import {
   RequireSigner,
   Transaction,
   TransactionProvider,
-  TransactionSigner,
+  type SignerOrProvider,
   type TransactionOverrides
 } from './transaction';
 
 export interface IndexerOptions {
-  signer?: TransactionSigner | TransactionProvider;
+  signer?: SignerOrProvider;
 }
 
 export interface UIDOptions {
@@ -73,7 +73,7 @@ export class Indexer extends Base {
   }
 
   // Connects the API to a specific signer
-  public connect(signer: TransactionSigner | TransactionProvider) {
+  public connect(signer: SignerOrProvider) {
     delete this.delegated;
 
     super.connect(signer);

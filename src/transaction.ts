@@ -1,4 +1,4 @@
-import { Abi, decodeFunctionResult, encodeFunctionData } from 'viem';
+import { Abi, decodeFunctionResult, encodeFunctionData, type Address, type PublicClient, type WalletClient } from 'viem';
 import { WaitableTxResponse } from './utils';
 
 // Minimal transaction request/receipt/log shapes to avoid depending on ethers types
@@ -37,16 +37,177 @@ export interface TransactionSigner extends TransactionProvider {
   provider?: TransactionProvider;
 }
 
+export type SignerOrProvider = TransactionSigner | TransactionProvider | WalletClient | PublicClient;
+
+type RequestFn = <TResult = unknown>(args: { method: string; params?: unknown[] }) => Promise<TResult>;
+
+class TxClientAdapter {
+  public static mapTxRequestToViem(tx: TransactionRequest): {
+    account?: Address;
+    to: Address;
+    data?: `0x${string}`;
+    value?: bigint;
+    gas?: bigint;
+    maxFeePerGas?: bigint;
+    maxPriorityFeePerGas?: bigint;
+  } {
+    return {
+      account: (tx.from as Address | undefined) ?? undefined,
+      to: tx.to as Address,
+      data: tx.data as `0x${string}` | undefined,
+      value: tx.value,
+      gas: tx.gas,
+      maxFeePerGas: tx.maxFeePerGas,
+      maxPriorityFeePerGas: tx.maxPriorityFeePerGas
+    };
+  }
+
+  public static toRpcQuantity(value?: bigint): `0x${string}` | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    return (`0x${value.toString(16)}`) as `0x${string}`;
+  }
+
+  public static toRpcTx(tx: TransactionRequest): {
+    to: Address;
+    from?: Address;
+    data?: `0x${string}`;
+    value?: `0x${string}`;
+    gas?: `0x${string}`;
+    maxFeePerGas?: `0x${string}`;
+    maxPriorityFeePerGas?: `0x${string}`;
+  } {
+    return {
+      to: tx.to as Address,
+      from: tx.from as Address | undefined,
+      data: tx.data as `0x${string}` | undefined,
+      value: this.toRpcQuantity(tx.value),
+      gas: this.toRpcQuantity(tx.gas),
+      maxFeePerGas: this.toRpcQuantity(tx.maxFeePerGas),
+      maxPriorityFeePerGas: this.toRpcQuantity(tx.maxPriorityFeePerGas)
+    };
+  }
+
+  public static createProviderAdapter(publicClient: PublicClient): TransactionProvider {
+    return {
+      estimateGas: async (tx: TransactionRequest) => {
+        const res = await publicClient.estimateGas(this.mapTxRequestToViem(tx));
+        return res;
+      },
+      call: async (tx: TransactionRequest) => {
+        const res = await publicClient.call(this.mapTxRequestToViem(tx));
+        return res as unknown as string;
+      },
+      resolveName: async (name: string) => {
+        const addr = await publicClient.getEnsAddress({ name });
+        return (addr as unknown as string) ?? null;
+      },
+      getNetwork: async () => ({ chainId: await publicClient.getChainId() })
+    };
+  }
+
+  public static createProviderFromWallet(walletClient: WalletClient): TransactionProvider {
+    const request: RequestFn = (walletClient as unknown as { request: RequestFn }).request.bind(
+      walletClient as unknown as object
+    );
+    return {
+      estimateGas: async (tx: TransactionRequest) => {
+        const hex = await request<string>({
+          method: 'eth_estimateGas',
+          params: [this.toRpcTx(tx)]
+        });
+        return BigInt(hex);
+      },
+      call: async (tx: TransactionRequest) => {
+        const data = await request<string>({
+          method: 'eth_call',
+          params: [this.toRpcTx(tx), 'latest']
+        });
+        return data;
+      },
+      resolveName: (_name: string) => Promise.resolve(null),
+      getNetwork: async () => {
+        const hex = await request<string>({ method: 'eth_chainId' });
+        return { chainId: BigInt(hex) };
+      }
+    };
+  }
+
+  public static createSignerAdapter(walletClient: WalletClient, publicClient?: PublicClient): TransactionSigner {
+    const pc = publicClient;
+    const provider = pc ? this.createProviderAdapter(pc) : this.createProviderFromWallet(walletClient);
+    return {
+      ...provider,
+      provider,
+      sendTransaction: async (tx: TransactionRequest) => {
+        const params = this.mapTxRequestToViem(tx);
+        const account = (params.account ?? (walletClient.account as Address | undefined)) as Address | undefined;
+        const hash = await (
+          walletClient as unknown as { sendTransaction: (args: Record<string, unknown>) => Promise<`0x${string}`> }
+        ).sendTransaction(account ? { ...params, account } : params);
+        return {
+          wait: async (confirmations?: number) => {
+            if (pc) {
+              const receipt = await pc.waitForTransactionReceipt({ hash, confirmations });
+              return {
+                logs: receipt.logs.map((l) => ({ topics: l.topics as unknown as string[], data: l.data as string }))
+              } as TransactionReceipt;
+            }
+            const request: RequestFn = (walletClient as unknown as { request: RequestFn }).request.bind(
+              walletClient as unknown as object
+            );
+            for (;;) {
+              const r = await request<
+                | null
+                | {
+                    logs: { topics: string[]; data: string }[];
+                  }
+              >({
+                method: 'eth_getTransactionReceipt',
+                params: [hash]
+              });
+              if (r) {
+                return { logs: r.logs.map((l) => ({ topics: l.topics, data: l.data })) } as TransactionReceipt;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+          }
+        } as { wait: (confirmations?: number) => Promise<TransactionReceipt> };
+      }
+    };
+  }
+
+  public static adaptSignerOrProvider(input: SignerOrProvider): TransactionSigner | TransactionProvider {
+    const maybe = input as TransactionSigner | TransactionProvider;
+    if (typeof (maybe as TransactionSigner).sendTransaction === 'function') {
+      return maybe as TransactionSigner;
+    }
+    if (
+      typeof (maybe as TransactionProvider).estimateGas === 'function' &&
+      typeof (maybe as TransactionProvider).call === 'function'
+    ) {
+      return maybe as TransactionProvider;
+    }
+    if ((input as PublicClient).request && (input as PublicClient).getChainId) {
+      return this.createProviderAdapter(input as PublicClient);
+    }
+    return this.createSignerAdapter(input as WalletClient);
+  }
+}
+
 // Overloads to support both legacy (experimental) and standard (TC39) decorators
 export function RequireSigner(
   _target: unknown,
   _propertyKey: string,
   descriptor: PropertyDescriptor
 ): PropertyDescriptor;
+
 export function RequireSigner<TFn extends (this: unknown, ...args: unknown[]) => unknown>(
   value: TFn,
   _context: ClassMethodDecoratorContext
 ): TFn;
+
 export function RequireSigner(...args: unknown[]): unknown {
   // Standard decorator: (value, context)
   if (args.length === 2) {
@@ -128,7 +289,7 @@ export class Base {
   protected signer?: TransactionSigner | TransactionProvider;
   protected contract: { getAddress: () => string; runner: { provider?: TransactionProvider } };
 
-  constructor(abi: Abi, address: string, signer?: TransactionSigner | TransactionProvider) {
+  constructor(abi: Abi, address: string, signer?: SignerOrProvider) {
     this.abi = abi;
     this.address = address;
     this.contract = {
@@ -145,8 +306,8 @@ export class Base {
   }
 
   // Connects the API to a specific signer or provider
-  public connect(signer: TransactionSigner | TransactionProvider) {
-    this.signer = signer;
+  public connect(signer: SignerOrProvider) {
+    this.signer = TxClientAdapter.adaptSignerOrProvider(signer);
 
     this.contract.runner.provider = this.getProvider();
 

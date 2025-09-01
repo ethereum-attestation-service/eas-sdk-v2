@@ -243,7 +243,7 @@ export class Offchain extends TypedDataHandler {
     };
   }
 
-  public verifyOffchainAttestationSignature(attester: string, attestation: SignedOffchainAttestation): boolean {
+  public async verifyOffchainAttestationSignature(attester: string, attestation: SignedOffchainAttestation): Promise<boolean> {
     const {
       message: { schema, recipient, time, expirationTime, revocable, refUID, data, salt }
     } = attestation;
@@ -255,9 +255,19 @@ export class Offchain extends TypedDataHandler {
     }
 
     const typeCount = this.verificationTypes.length;
-    return this.verificationTypes.some((type, index) => {
+
+    const asyncSome = async <T>(arr: T[], cb: (value: T, index: number) => Promise<boolean>): Promise<boolean> => {
+      for (let i = 0; i < arr.length; i++) {
+        if (await cb(arr[i], i)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const result = await asyncSome(this.verificationTypes, async (type, index) => {
       try {
-        return this.verifyTypedDataRequestSignature(
+        return await this.verifyTypedDataRequestSignature(
           attester,
           attestation,
           {
@@ -271,9 +281,11 @@ export class Offchain extends TypedDataHandler {
           return false;
         }
 
-        throw e;
+        throw e as unknown;
       }
     });
+
+    return result;
   }
 
   private getOffchainUID(params: OffchainAttestationParams): string {
