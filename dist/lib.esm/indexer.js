@@ -1,7 +1,7 @@
 import { __decorate, __metadata } from "tslib";
 import IndexerArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/Indexer.sol/Indexer.json';
-import from './legacy/version.js';
-import from './transaction.js';
+import { legacyVersion } from './legacy/version.js';
+import { Base, RequireSigner, Transaction } from './transaction.js';
 export class Indexer extends Base {
     delegated;
     constructor(address, options) {

@@ -1,7 +1,7 @@
 import { bytesToHex, encodeAbiParameters, encodePacked, keccak256, stringToHex, toBytes } from 'viem';
-import from '../utils.js';
-import from './typed-data-handler.js';
-import from './versions.js';
+import { ZERO_ADDRESS, ZERO_BYTES32 } from '../utils.js';
+import { InvalidPrimaryType, InvalidTypes, TypedDataHandler } from './typed-data-handler.js';
+import { EIP712_NAME } from './versions.js';
 export var OffchainAttestationVersion;
 (function (OffchainAttestationVersion) {
     OffchainAttestationVersion[OffchainAttestationVersion["Legacy"] = 0] = "Legacy";
