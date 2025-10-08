@@ -1,7 +1,7 @@
 {
   "name": "@ethereum-attestation-service/eas-sdk-v2",
   "version": "1.0.0-beta.1",
-  "description": "Ethereum Attestation Service - TypeScript/JavaScript SDK",
+  "description": "Ethereum Attestation Service - TypeScript/JavaScript SDK v2",
   "repository": "git@github.com:ethereum-attestation-service/eas-sdk-v2.git",
   "author": "Leonid Beder <leonid@lbeder.com>",
   "license": "MIT",
