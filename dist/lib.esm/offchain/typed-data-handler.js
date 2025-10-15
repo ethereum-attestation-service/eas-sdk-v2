@@ -1,4 +1,4 @@
-import isEqual from 'lodash/isEqual';
+import { isEqual } from 'lodash';
 import { concatHex, encodeAbiParameters, getAddress, hashTypedData, keccak256, recoverAddress, stringToHex } from 'viem';
 import { ZERO_ADDRESS } from '../utils.js';
 export const EIP712_DOMAIN = 'EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)';

@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Delegated = void 0;
 const tslib_1 = require("tslib");
-const omit_1 = tslib_1.__importDefault(require("lodash/omit"));
+const lodash_1 = require("lodash");
 const semver_1 = tslib_1.__importDefault(require("semver"));
 const typed_data_handler_1 = require("./typed-data-handler");
 const versions_1 = require("./versions");
@@ -164,7 +164,7 @@ class Delegated extends typed_data_handler_1.TypedDataHandler {
         effectiveParams.nonce ??= await this.eas.getNonce(effectiveParams.attester);
         switch (this.version) {
             case DelegatedAttestationVersion.Legacy:
-                effectiveParams = (0, omit_1.default)(effectiveParams, ['value', 'deadline']);
+                effectiveParams = (0, lodash_1.omit)(effectiveParams, ['value', 'deadline']);
                 break;
         }
         return this.signTypedDataRequest(effectiveParams, {
@@ -190,7 +190,7 @@ class Delegated extends typed_data_handler_1.TypedDataHandler {
         effectiveParams.nonce ??= await this.eas.getNonce(effectiveParams.revoker);
         switch (this.version) {
             case DelegatedAttestationVersion.Legacy:
-                effectiveParams = (0, omit_1.default)(effectiveParams, ['value', 'deadline']);
+                effectiveParams = (0, lodash_1.omit)(effectiveParams, ['value', 'deadline']);
                 break;
         }
         return this.signTypedDataRequest(effectiveParams, {
