@@ -104,8 +104,9 @@ class TxClientAdapter {
         return res;
       },
       call: async (tx: TransactionRequest) => {
+        // viem's publicClient.call returns { data?: Hex }, while eth_call / decodeFunctionResult expect hex.
         const res = await publicClient.call(this.mapTxRequestToViem(tx));
-        return res as unknown as string;
+        return (res.data ?? '0x') as string;
       },
       resolveName: async (name: string) => {
         const addr = await publicClient.getEnsAddress({ name });
