@@ -10,6 +10,7 @@ export interface TransactionRequest {
 }
 export type TransactionOverrides = Partial<TransactionRequest>;
 export interface TransactionLog {
+    address: string;
     topics: string[];
     data: string;
 }

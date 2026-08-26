@@ -89,7 +89,11 @@ class TxClientAdapter {
                         if (pc) {
                             const receipt = await pc.waitForTransactionReceipt({ hash, confirmations });
                             return {
-                                logs: receipt.logs.map((l) => ({ topics: l.topics, data: l.data }))
+                                logs: receipt.logs.map((l) => ({
+                                    address: l.address,
+                                    topics: l.topics,
+                                    data: l.data
+                                }))
                             };
                         }
                         const request = walletClient.request.bind(walletClient);
@@ -99,7 +103,9 @@ class TxClientAdapter {
                                 params: [hash]
                             });
                             if (r) {
-                                return { logs: r.logs.map((l) => ({ topics: l.topics, data: l.data })) };
+                                return {
+                                    logs: r.logs.map((l) => ({ address: l.address, topics: l.topics, data: l.data }))
+                                };
                             }
                             await new Promise((resolve) => setTimeout(resolve, 1000));
                         }

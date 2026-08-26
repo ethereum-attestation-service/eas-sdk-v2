@@ -1,5 +1,6 @@
 import EIP712ProxyArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/eip712/proxy/EIP712Proxy.sol/EIP712Proxy.json';
 import type { Abi } from 'viem';
+import { EAS } from './eas';
 import { legacyVersion } from './legacy/version';
 import { DelegatedProxy } from './offchain';
 import {
@@ -18,7 +19,7 @@ import {
   type TransactionOverrides,
   type TransactionReceipt
 } from './transaction';
-import { getUIDsFromAttestReceipt, ZERO_BYTES32 } from './utils';
+import { ZERO_BYTES32 } from './utils';
 
 export interface EIP712ProxyOptions {
   signer?: SignerOrProvider;
@@ -26,6 +27,7 @@ export interface EIP712ProxyOptions {
 
 export class EIP712Proxy extends Base {
   private delegated?: DelegatedProxy;
+  private eas?: EAS;
 
   constructor(address: string, options?: EIP712ProxyOptions) {
     const { signer } = options || {};
@@ -36,6 +38,7 @@ export class EIP712Proxy extends Base {
   // Connects the API to a specific signer
   public connect(signer: SignerOrProvider) {
     delete this.delegated;
+    delete this.eas;
 
     super.connect(signer);
 
@@ -53,9 +56,13 @@ export class EIP712Proxy extends Base {
     );
   }
 
-  // Returns the address of the EAS contract
-  public getEAS(): Promise<string> {
-    return this.read<string>('getEAS');
+  // Returns the EAS API
+  public async getEAS(): Promise<EAS> {
+    if (this.eas) {
+      return this.eas;
+    }
+
+    return (this.eas = new EAS(await this.read<string>('getEAS'), { signer: this.signer }));
   }
 
   // Returns the EIP712 name
@@ -118,8 +125,8 @@ export class EIP712Proxy extends Base {
       { ...(overrides as unknown as object), value }
     );
 
-    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getUIDsFromAttestReceipt(receipt)[0])
+    return new Transaction(tx, this.signer!, async (receipt: TransactionReceipt) =>
+      (await this.getEAS()).getUIDsFromAttestReceipt(receipt)[0]
     );
   }
 
@@ -155,8 +162,8 @@ export class EIP712Proxy extends Base {
       value: requestedValue
     });
 
-    return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getUIDsFromAttestReceipt(receipt))
+    return new Transaction(tx, this.signer!, async (receipt: TransactionReceipt) =>
+      (await this.getEAS()).getUIDsFromAttestReceipt(receipt)
     );
   }
 
