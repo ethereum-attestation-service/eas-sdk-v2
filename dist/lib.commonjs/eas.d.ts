@@ -1,7 +1,8 @@
 import { EIP712Proxy } from './eip712-proxy';
 import { Delegated, Offchain } from './offchain';
 import { AttestationRequest, DelegatedAttestationRequest, DelegatedProxyAttestationRequest, DelegatedProxyRevocationRequest, DelegatedRevocationRequest, MultiAttestationRequest, MultiDelegatedAttestationRequest, MultiDelegatedProxyAttestationRequest, MultiDelegatedProxyRevocationRequest, MultiDelegatedRevocationRequest, MultiRevocationRequest, RevocationRequest } from './request';
-import { Base, Transaction, type SignerOrProvider, type TransactionOverrides } from './transaction';
+import { Base, Transaction, type SignerOrProvider, type TransactionOverrides, type TransactionReceipt } from './transaction';
+import { WaitableTxResponse } from './utils';
 export * from './request';
 export interface Attestation {
     uid: string;
@@ -59,6 +60,11 @@ export declare class EAS extends Base {
     getAttestTypeHash(): Promise<string>;
     getRevokeTypeHash(): Promise<string>;
     static getAttestationUID: (schema: string, recipient: string, attester: string, time: bigint, expirationTime: bigint, revocable: boolean, refUID: string, data: string, bump: number) => `0x${string}`;
+    getUIDFromAttestTx(res: Promise<WaitableTxResponse> | WaitableTxResponse): Promise<string>;
+    getUIDsFromMultiAttestTx(res: Promise<WaitableTxResponse> | WaitableTxResponse): Promise<string[]>;
+    getUIDsFromAttestReceipt(receipt: TransactionReceipt): string[];
+    getTimestampFromTimestampReceipt(receipt: TransactionReceipt): bigint[];
+    getTimestampFromOffchainRevocationReceipt(receipt: TransactionReceipt): bigint[];
     simulateAttest(input: {
         schema: string;
         data: {
@@ -73,4 +79,5 @@ export declare class EAS extends Base {
     private setDelegated;
     private setOffchain;
     private isLegacyContract;
+    private getDataFromReceipt;
 }

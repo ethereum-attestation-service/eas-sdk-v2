@@ -1,7 +1,7 @@
 import EASLegacyArtifact from '@ethereum-attestation-service/eas-contracts-legacy/artifacts/contracts/EAS.sol/EAS.json';
 import EASArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/EAS.sol/EAS.json';
 import semver from 'semver';
-import { encodePacked, keccak256, stringToHex, type Abi } from 'viem';
+import { decodeEventLog, encodePacked, keccak256, stringToHex, type Abi } from 'viem';
 import { EIP712Proxy } from './eip712-proxy';
 import { legacyVersion } from './legacy/version';
 import { Delegated, Offchain, OffchainAttestationVersion } from './offchain';
@@ -29,15 +29,21 @@ import {
   type TransactionOverrides,
   type TransactionReceipt
 } from './transaction';
-import {
-  getTimestampFromOffchainRevocationReceipt,
-  getTimestampFromTimestampReceipt,
-  getUIDsFromAttestReceipt,
-  ZERO_ADDRESS,
-  ZERO_BYTES32
-} from './utils';
+import { WaitableTxResponse, ZERO_ADDRESS, ZERO_BYTES32 } from './utils';
 
 const LEGACY_VERSION = '1.1.0';
+
+enum Event {
+  Attested = 'Attested',
+  Timestamped = 'Timestamped',
+  RevokedOffchain = 'RevokedOffchain'
+}
+
+const TOPICS = {
+  [Event.Attested]: keccak256(stringToHex('Attested(address,address,bytes32,bytes32)')),
+  [Event.Timestamped]: keccak256(stringToHex('Timestamped(bytes32,uint64)')),
+  [Event.RevokedOffchain]: keccak256(stringToHex('RevokedOffchain(address,bytes32,uint64)'))
+};
 
 export * from './request';
 
@@ -222,7 +228,7 @@ export class EAS extends Base {
       }
     );
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getUIDsFromAttestReceipt(receipt)[0])
+      Promise.resolve(this.getUIDsFromAttestReceipt(receipt)[0])
     );
   }
 
@@ -265,7 +271,7 @@ export class EAS extends Base {
       : this.populate('attestByDelegation', args, { ...(overrides as unknown as object), value });
 
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getUIDsFromAttestReceipt(receipt)[0])
+      Promise.resolve(this.getUIDsFromAttestReceipt(receipt)[0])
     );
   }
 
@@ -298,7 +304,7 @@ export class EAS extends Base {
       value: requestedValue
     });
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getUIDsFromAttestReceipt(receipt))
+      Promise.resolve(this.getUIDsFromAttestReceipt(receipt))
     );
   }
 
@@ -340,7 +346,7 @@ export class EAS extends Base {
     /* eslint-enable indent */
 
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getUIDsFromAttestReceipt(receipt))
+      Promise.resolve(this.getUIDsFromAttestReceipt(receipt))
     );
   }
 
@@ -479,7 +485,7 @@ export class EAS extends Base {
   public async timestamp(data: string, overrides?: TransactionOverrides): Promise<Transaction<bigint>> {
     const tx = this.populate('timestamp', [data], overrides);
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getTimestampFromTimestampReceipt(receipt)[0])
+      Promise.resolve(this.getTimestampFromTimestampReceipt(receipt)[0])
     );
   }
 
@@ -489,7 +495,7 @@ export class EAS extends Base {
   public async multiTimestamp(data: string[], overrides?: TransactionOverrides): Promise<Transaction<bigint[]>> {
     const tx = this.populate('multiTimestamp', [data], overrides);
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getTimestampFromTimestampReceipt(receipt))
+      Promise.resolve(this.getTimestampFromTimestampReceipt(receipt))
     );
   }
 
@@ -499,7 +505,7 @@ export class EAS extends Base {
   public async revokeOffchain(uid: string, overrides?: TransactionOverrides): Promise<Transaction<bigint>> {
     const tx = this.populate('revokeOffchain', [uid], overrides);
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getTimestampFromOffchainRevocationReceipt(receipt)[0])
+      Promise.resolve(this.getTimestampFromOffchainRevocationReceipt(receipt)[0])
     );
   }
 
@@ -509,7 +515,7 @@ export class EAS extends Base {
   public async multiRevokeOffchain(uids: string[], overrides?: TransactionOverrides): Promise<Transaction<bigint[]>> {
     const tx = this.populate('multiRevokeOffchain', [uids], overrides);
     return new Transaction(tx, this.signer!, (receipt: TransactionReceipt) =>
-      Promise.resolve(getTimestampFromOffchainRevocationReceipt(receipt))
+      Promise.resolve(this.getTimestampFromOffchainRevocationReceipt(receipt))
     );
   }
 
@@ -561,6 +567,32 @@ export class EAS extends Base {
         ]
       )
     );
+
+  public async getUIDFromAttestTx(res: Promise<WaitableTxResponse> | WaitableTxResponse): Promise<string> {
+    return (await this.getUIDsFromMultiAttestTx(res))[0];
+  }
+
+  public async getUIDsFromMultiAttestTx(res: Promise<WaitableTxResponse> | WaitableTxResponse): Promise<string[]> {
+    const tx = await res;
+    const receipt = (await tx.wait()) as unknown as TransactionReceipt | undefined;
+    if (!receipt) {
+      throw new Error(`Unable to confirm: ${tx}`);
+    }
+
+    return this.getUIDsFromAttestReceipt(receipt);
+  }
+
+  public getUIDsFromAttestReceipt(receipt: TransactionReceipt): string[] {
+    return this.getDataFromReceipt(receipt, Event.Attested, 'uid');
+  }
+
+  public getTimestampFromTimestampReceipt(receipt: TransactionReceipt): bigint[] {
+    return this.getDataFromReceipt(receipt, Event.Timestamped, 'timestamp').map((s) => BigInt(s));
+  }
+
+  public getTimestampFromOffchainRevocationReceipt(receipt: TransactionReceipt): bigint[] {
+    return this.getDataFromReceipt(receipt, Event.RevokedOffchain, 'timestamp').map((s) => BigInt(s));
+  }
 
   // Simulate an attest call (read-only) for validation purposes
   public async simulateAttest(
@@ -616,5 +648,26 @@ export class EAS extends Base {
       throw new Error(`Invalid version: ${version}`);
     }
     return semver.lte(fullVersion, LEGACY_VERSION);
+  }
+
+  private getDataFromReceipt(receipt: TransactionReceipt, event: Event, attribute: string): string[] {
+    const abi = (EASArtifact as { abi: Abi }).abi;
+    const easAddress = this.getAddress();
+    const logs = receipt.logs.filter(
+      (l) => l.topics[0] === TOPICS[event] && l.address.toLowerCase() === easAddress.toLowerCase()
+    );
+    if (logs.length === 0) {
+      throw new Error(`Unable to process ${event} events`);
+    }
+
+    return logs.map((log) => {
+      const decoded = decodeEventLog({
+        abi,
+        topics: log.topics as unknown as [`0x${string}`, ...`0x${string}`[]],
+        data: log.data as `0x${string}`
+      });
+
+      return (decoded as unknown as { args: { [key: string]: unknown } }).args[attribute] as string;
+    });
   }
 }

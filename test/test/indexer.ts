@@ -41,7 +41,8 @@ describe('Indexer API', () => {
     it('should properly create an Indexer API', async () => {
       expect(await indexer.getVersion()).to.equal(await indexerContract.version());
 
-      expect(await indexer.getEAS()).to.equal(await easContract.getAddress());
+      expect(await indexer.getEASAddress()).to.equal(await easContract.getAddress());
+      expect(await (await indexer.getEAS()).getAddress()).to.equal(await easContract.getAddress());
     });
   });
 

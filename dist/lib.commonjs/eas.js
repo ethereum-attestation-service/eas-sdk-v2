@@ -13,6 +13,17 @@ const request_1 = require("./request");
 const transaction_1 = require("./transaction");
 const utils_1 = require("./utils");
 const LEGACY_VERSION = '1.1.0';
+var Event;
+(function (Event) {
+    Event["Attested"] = "Attested";
+    Event["Timestamped"] = "Timestamped";
+    Event["RevokedOffchain"] = "RevokedOffchain";
+})(Event || (Event = {}));
+const TOPICS = {
+    [Event.Attested]: (0, viem_1.keccak256)((0, viem_1.stringToHex)('Attested(address,address,bytes32,bytes32)')),
+    [Event.Timestamped]: (0, viem_1.keccak256)((0, viem_1.stringToHex)('Timestamped(bytes32,uint64)')),
+    [Event.RevokedOffchain]: (0, viem_1.keccak256)((0, viem_1.stringToHex)('RevokedOffchain(address,bytes32,uint64)'))
+};
 tslib_1.__exportStar(require("./request"), exports);
 function RequireProxy(...args) {
     // Standard decorator: (value, context)
@@ -119,7 +130,7 @@ class EAS extends transaction_1.Base {
             ...overrides,
             value
         });
-        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve((0, utils_1.getUIDsFromAttestReceipt)(receipt)[0]));
+        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getUIDsFromAttestReceipt(receipt)[0]));
     }
     // Attests to a specific schema via an EIP712 delegation request
     async attestByDelegation({ schema, data: { recipient = utils_1.ZERO_ADDRESS, data, expirationTime = request_1.NO_EXPIRATION, revocable = true, refUID = utils_1.ZERO_BYTES32, value = 0n }, signature, attester, deadline = request_1.NO_EXPIRATION }, overrides) {
@@ -140,7 +151,7 @@ class EAS extends transaction_1.Base {
         const tx = isLegacy
             ? this.populateWithAbi(this.legacyAbi, 'attestByDelegation', args, { ...overrides, value })
             : this.populate('attestByDelegation', args, { ...overrides, value });
-        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve((0, utils_1.getUIDsFromAttestReceipt)(receipt)[0]));
+        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getUIDsFromAttestReceipt(receipt)[0]));
     }
     // Multi-attests to multiple schemas
     // eslint-disable-next-line require-await
@@ -164,7 +175,7 @@ class EAS extends transaction_1.Base {
             ...overrides,
             value: requestedValue
         });
-        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve((0, utils_1.getUIDsFromAttestReceipt)(receipt)));
+        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getUIDsFromAttestReceipt(receipt)));
     }
     // Multi-attests to multiple schemas via an EIP712 delegation requests
     async multiAttestByDelegation(requests, overrides) {
@@ -196,7 +207,7 @@ class EAS extends transaction_1.Base {
             })
             : this.populate('multiAttestByDelegation', args, { ...overrides, value: requestedValue });
         /* eslint-enable indent */
-        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve((0, utils_1.getUIDsFromAttestReceipt)(receipt)));
+        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getUIDsFromAttestReceipt(receipt)));
     }
     // Revokes an existing attestation
     // eslint-disable-next-line require-await
@@ -283,25 +294,25 @@ class EAS extends transaction_1.Base {
     // eslint-disable-next-line require-await
     async timestamp(data, overrides) {
         const tx = this.populate('timestamp', [data], overrides);
-        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve((0, utils_1.getTimestampFromTimestampReceipt)(receipt)[0]));
+        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getTimestampFromTimestampReceipt(receipt)[0]));
     }
     // Timestamps the specified multiple bytes32 data
     // eslint-disable-next-line require-await
     async multiTimestamp(data, overrides) {
         const tx = this.populate('multiTimestamp', [data], overrides);
-        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve((0, utils_1.getTimestampFromTimestampReceipt)(receipt)));
+        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getTimestampFromTimestampReceipt(receipt)));
     }
     // Revokes the specified offchain attestation UID
     // eslint-disable-next-line require-await
     async revokeOffchain(uid, overrides) {
         const tx = this.populate('revokeOffchain', [uid], overrides);
-        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve((0, utils_1.getTimestampFromOffchainRevocationReceipt)(receipt)[0]));
+        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getTimestampFromOffchainRevocationReceipt(receipt)[0]));
     }
     // Revokes the specified multiple offchain attestation UIDs
     // eslint-disable-next-line require-await
     async multiRevokeOffchain(uids, overrides) {
         const tx = this.populate('multiRevokeOffchain', [uids], overrides);
-        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve((0, utils_1.getTimestampFromOffchainRevocationReceipt)(receipt)));
+        return new transaction_1.Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getTimestampFromOffchainRevocationReceipt(receipt)));
     }
     // Returns the domain separator used in the encoding of the signatures for attest, and revoke
     getDomainSeparator() {
@@ -331,6 +342,26 @@ class EAS extends transaction_1.Base {
         data,
         bump
     ]));
+    async getUIDFromAttestTx(res) {
+        return (await this.getUIDsFromMultiAttestTx(res))[0];
+    }
+    async getUIDsFromMultiAttestTx(res) {
+        const tx = await res;
+        const receipt = (await tx.wait());
+        if (!receipt) {
+            throw new Error(`Unable to confirm: ${tx}`);
+        }
+        return this.getUIDsFromAttestReceipt(receipt);
+    }
+    getUIDsFromAttestReceipt(receipt) {
+        return this.getDataFromReceipt(receipt, Event.Attested, 'uid');
+    }
+    getTimestampFromTimestampReceipt(receipt) {
+        return this.getDataFromReceipt(receipt, Event.Timestamped, 'timestamp').map((s) => BigInt(s));
+    }
+    getTimestampFromOffchainRevocationReceipt(receipt) {
+        return this.getDataFromReceipt(receipt, Event.RevokedOffchain, 'timestamp').map((s) => BigInt(s));
+    }
     // Simulate an attest call (read-only) for validation purposes
     async simulateAttest(input, from) {
         await this.read('attest', [input], from ? { from } : {});
@@ -360,6 +391,22 @@ class EAS extends transaction_1.Base {
             throw new Error(`Invalid version: ${version}`);
         }
         return semver_1.default.lte(fullVersion, LEGACY_VERSION);
+    }
+    getDataFromReceipt(receipt, event, attribute) {
+        const abi = EAS_json_2.default.abi;
+        const easAddress = this.getAddress();
+        const logs = receipt.logs.filter((l) => l.topics[0] === TOPICS[event] && l.address.toLowerCase() === easAddress.toLowerCase());
+        if (logs.length === 0) {
+            throw new Error(`Unable to process ${event} events`);
+        }
+        return logs.map((log) => {
+            const decoded = (0, viem_1.decodeEventLog)({
+                abi,
+                topics: log.topics,
+                data: log.data
+            });
+            return decoded.args[attribute];
+        });
     }
 }
 exports.EAS = EAS;

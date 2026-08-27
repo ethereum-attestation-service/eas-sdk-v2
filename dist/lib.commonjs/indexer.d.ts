@@ -1,3 +1,4 @@
+import { EAS } from './eas';
 import { Base, Transaction, type SignerOrProvider, type TransactionOverrides } from './transaction';
 export interface IndexerOptions {
     signer?: SignerOrProvider;
@@ -41,10 +42,12 @@ export interface GetSchemaAttestationUIDCountOptions {
 }
 export declare class Indexer extends Base {
     private delegated?;
+    private eas?;
     constructor(address: string, options?: IndexerOptions);
     connect(signer: SignerOrProvider): this;
     getVersion(): Promise<string>;
-    getEAS(): Promise<string>;
+    getEASAddress(): Promise<string>;
+    getEAS(): Promise<EAS>;
     indexAttestation({ uid }: IndexAttestationOptions, overrides?: TransactionOverrides): Promise<Transaction<void>>;
     indexAttestations({ uids }: IndexAttestationsOptions, overrides?: TransactionOverrides): Promise<Transaction<void>>;
     isAttestationIndexed({ uid }: IsAttestationIndexedOptions): Promise<boolean>;

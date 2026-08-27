@@ -1,3 +1,4 @@
+import { EAS } from './eas';
 import { DelegatedProxy } from './offchain';
 import { DelegatedProxyAttestationRequest, DelegatedProxyRevocationRequest, MultiDelegatedProxyAttestationRequest, MultiDelegatedProxyRevocationRequest } from './request';
 import { Base, Transaction, type SignerOrProvider, type TransactionOverrides } from './transaction';
@@ -6,10 +7,12 @@ export interface EIP712ProxyOptions {
 }
 export declare class EIP712Proxy extends Base {
     private delegated?;
+    private eas?;
     constructor(address: string, options?: EIP712ProxyOptions);
     connect(signer: SignerOrProvider): this;
     getVersion(): Promise<string>;
-    getEAS(): Promise<string>;
+    getEASAddress(): Promise<string>;
+    getEAS(): Promise<EAS>;
     getName(): Promise<string>;
     getDomainSeparator(): Promise<string>;
     getAttestTypeHash(): Promise<string>;

@@ -36,8 +36,9 @@ class TxClientAdapter {
                 return res;
             },
             call: async (tx) => {
+                // viem's publicClient.call returns { data?: Hex }, while eth_call / decodeFunctionResult expect hex.
                 const res = await publicClient.call(this.mapTxRequestToViem(tx));
-                return res;
+                return (res.data ?? '0x');
             },
             resolveName: async (name) => {
                 const addr = await publicClient.getEnsAddress({ name });
@@ -85,7 +86,11 @@ class TxClientAdapter {
                         if (pc) {
                             const receipt = await pc.waitForTransactionReceipt({ hash, confirmations });
                             return {
-                                logs: receipt.logs.map((l) => ({ topics: l.topics, data: l.data }))
+                                logs: receipt.logs.map((l) => ({
+                                    address: l.address,
+                                    topics: l.topics,
+                                    data: l.data
+                                }))
                             };
                         }
                         const request = walletClient.request.bind(walletClient);
@@ -95,7 +100,9 @@ class TxClientAdapter {
                                 params: [hash]
                             });
                             if (r) {
-                                return { logs: r.logs.map((l) => ({ topics: l.topics, data: l.data })) };
+                                return {
+                                    logs: r.logs.map((l) => ({ address: l.address, topics: l.topics, data: l.data }))
+                                };
                             }
                             await new Promise((resolve) => setTimeout(resolve, 1000));
                         }

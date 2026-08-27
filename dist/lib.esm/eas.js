@@ -2,14 +2,25 @@ import { __decorate, __metadata } from "tslib";
 import EASLegacyArtifact from '@ethereum-attestation-service/eas-contracts-legacy/artifacts/contracts/EAS.sol/EAS.json';
 import EASArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/EAS.sol/EAS.json';
 import semver from 'semver';
-import { encodePacked, keccak256, stringToHex } from 'viem';
-import { legacyVersion } from './legacy/version.js';
-import { Delegated, Offchain, OffchainAttestationVersion } from './offchain/index.js';
-import { NO_EXPIRATION } from './request.js';
-import { Base, RequireSigner, Transaction } from './transaction.js';
-import { getTimestampFromOffchainRevocationReceipt, getTimestampFromTimestampReceipt, getUIDsFromAttestReceipt, ZERO_ADDRESS, ZERO_BYTES32 } from './utils.js';
+import { decodeEventLog, encodePacked, keccak256, stringToHex } from 'viem';
+import { legacyVersion } from './legacy/version';
+import { Delegated, Offchain, OffchainAttestationVersion } from './offchain';
+import { NO_EXPIRATION } from './request';
+import { Base, RequireSigner, Transaction } from './transaction';
+import { ZERO_ADDRESS, ZERO_BYTES32 } from './utils';
 const LEGACY_VERSION = '1.1.0';
-export * from './request.js';
+var Event;
+(function (Event) {
+    Event["Attested"] = "Attested";
+    Event["Timestamped"] = "Timestamped";
+    Event["RevokedOffchain"] = "RevokedOffchain";
+})(Event || (Event = {}));
+const TOPICS = {
+    [Event.Attested]: keccak256(stringToHex('Attested(address,address,bytes32,bytes32)')),
+    [Event.Timestamped]: keccak256(stringToHex('Timestamped(bytes32,uint64)')),
+    [Event.RevokedOffchain]: keccak256(stringToHex('RevokedOffchain(address,bytes32,uint64)'))
+};
+export * from './request';
 export function RequireProxy(...args) {
     // Standard decorator: (value, context)
     if (args.length === 2) {
@@ -115,7 +126,7 @@ export class EAS extends Base {
             ...overrides,
             value
         });
-        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(getUIDsFromAttestReceipt(receipt)[0]));
+        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getUIDsFromAttestReceipt(receipt)[0]));
     }
     // Attests to a specific schema via an EIP712 delegation request
     async attestByDelegation({ schema, data: { recipient = ZERO_ADDRESS, data, expirationTime = NO_EXPIRATION, revocable = true, refUID = ZERO_BYTES32, value = 0n }, signature, attester, deadline = NO_EXPIRATION }, overrides) {
@@ -136,7 +147,7 @@ export class EAS extends Base {
         const tx = isLegacy
             ? this.populateWithAbi(this.legacyAbi, 'attestByDelegation', args, { ...overrides, value })
             : this.populate('attestByDelegation', args, { ...overrides, value });
-        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(getUIDsFromAttestReceipt(receipt)[0]));
+        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getUIDsFromAttestReceipt(receipt)[0]));
     }
     // Multi-attests to multiple schemas
     // eslint-disable-next-line require-await
@@ -160,7 +171,7 @@ export class EAS extends Base {
             ...overrides,
             value: requestedValue
         });
-        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(getUIDsFromAttestReceipt(receipt)));
+        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getUIDsFromAttestReceipt(receipt)));
     }
     // Multi-attests to multiple schemas via an EIP712 delegation requests
     async multiAttestByDelegation(requests, overrides) {
@@ -192,7 +203,7 @@ export class EAS extends Base {
             })
             : this.populate('multiAttestByDelegation', args, { ...overrides, value: requestedValue });
         /* eslint-enable indent */
-        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(getUIDsFromAttestReceipt(receipt)));
+        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getUIDsFromAttestReceipt(receipt)));
     }
     // Revokes an existing attestation
     // eslint-disable-next-line require-await
@@ -279,25 +290,25 @@ export class EAS extends Base {
     // eslint-disable-next-line require-await
     async timestamp(data, overrides) {
         const tx = this.populate('timestamp', [data], overrides);
-        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(getTimestampFromTimestampReceipt(receipt)[0]));
+        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getTimestampFromTimestampReceipt(receipt)[0]));
     }
     // Timestamps the specified multiple bytes32 data
     // eslint-disable-next-line require-await
     async multiTimestamp(data, overrides) {
         const tx = this.populate('multiTimestamp', [data], overrides);
-        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(getTimestampFromTimestampReceipt(receipt)));
+        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getTimestampFromTimestampReceipt(receipt)));
     }
     // Revokes the specified offchain attestation UID
     // eslint-disable-next-line require-await
     async revokeOffchain(uid, overrides) {
         const tx = this.populate('revokeOffchain', [uid], overrides);
-        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(getTimestampFromOffchainRevocationReceipt(receipt)[0]));
+        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getTimestampFromOffchainRevocationReceipt(receipt)[0]));
     }
     // Revokes the specified multiple offchain attestation UIDs
     // eslint-disable-next-line require-await
     async multiRevokeOffchain(uids, overrides) {
         const tx = this.populate('multiRevokeOffchain', [uids], overrides);
-        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(getTimestampFromOffchainRevocationReceipt(receipt)));
+        return new Transaction(tx, this.signer, (receipt) => Promise.resolve(this.getTimestampFromOffchainRevocationReceipt(receipt)));
     }
     // Returns the domain separator used in the encoding of the signatures for attest, and revoke
     getDomainSeparator() {
@@ -327,6 +338,26 @@ export class EAS extends Base {
         data,
         bump
     ]));
+    async getUIDFromAttestTx(res) {
+        return (await this.getUIDsFromMultiAttestTx(res))[0];
+    }
+    async getUIDsFromMultiAttestTx(res) {
+        const tx = await res;
+        const receipt = (await tx.wait());
+        if (!receipt) {
+            throw new Error(`Unable to confirm: ${tx}`);
+        }
+        return this.getUIDsFromAttestReceipt(receipt);
+    }
+    getUIDsFromAttestReceipt(receipt) {
+        return this.getDataFromReceipt(receipt, Event.Attested, 'uid');
+    }
+    getTimestampFromTimestampReceipt(receipt) {
+        return this.getDataFromReceipt(receipt, Event.Timestamped, 'timestamp').map((s) => BigInt(s));
+    }
+    getTimestampFromOffchainRevocationReceipt(receipt) {
+        return this.getDataFromReceipt(receipt, Event.RevokedOffchain, 'timestamp').map((s) => BigInt(s));
+    }
     // Simulate an attest call (read-only) for validation purposes
     async simulateAttest(input, from) {
         await this.read('attest', [input], from ? { from } : {});
@@ -356,6 +387,22 @@ export class EAS extends Base {
             throw new Error(`Invalid version: ${version}`);
         }
         return semver.lte(fullVersion, LEGACY_VERSION);
+    }
+    getDataFromReceipt(receipt, event, attribute) {
+        const abi = EASArtifact.abi;
+        const easAddress = this.getAddress();
+        const logs = receipt.logs.filter((l) => l.topics[0] === TOPICS[event] && l.address.toLowerCase() === easAddress.toLowerCase());
+        if (logs.length === 0) {
+            throw new Error(`Unable to process ${event} events`);
+        }
+        return logs.map((log) => {
+            const decoded = decodeEventLog({
+                abi,
+                topics: log.topics,
+                data: log.data
+            });
+            return decoded.args[attribute];
+        });
     }
 }
 __decorate([

@@ -23,6 +23,7 @@ export interface TransactionRequest {
 export type TransactionOverrides = Partial<TransactionRequest>;
 
 export interface TransactionLog {
+  address: string;
   topics: string[];
   data: string;
 }
@@ -159,7 +160,11 @@ class TxClientAdapter {
             if (pc) {
               const receipt = await pc.waitForTransactionReceipt({ hash, confirmations });
               return {
-                logs: receipt.logs.map((l) => ({ topics: l.topics as unknown as string[], data: l.data as string }))
+                logs: receipt.logs.map((l) => ({
+                  address: l.address as string,
+                  topics: l.topics as unknown as string[],
+                  data: l.data as string
+                }))
               } as TransactionReceipt;
             }
             const request: RequestFn = (walletClient as unknown as { request: RequestFn }).request.bind(
@@ -167,13 +172,15 @@ class TxClientAdapter {
             );
             for (;;) {
               const r = await request<null | {
-                logs: { topics: string[]; data: string }[];
+                logs: { address: string; topics: string[]; data: string }[];
               }>({
                 method: 'eth_getTransactionReceipt',
                 params: [hash]
               });
               if (r) {
-                return { logs: r.logs.map((l) => ({ topics: l.topics, data: l.data })) } as TransactionReceipt;
+                return {
+                  logs: r.logs.map((l) => ({ address: l.address, topics: l.topics, data: l.data }))
+                } as TransactionReceipt;
               }
               await new Promise((resolve) => setTimeout(resolve, 1000));
             }

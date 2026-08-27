@@ -34,7 +34,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install SDK test dependencies
-        run: pnpm -C test install --frozen-lockfile
+        run: pnpm -C test install --frozen-lockfile --ignore-workspace
 
       - name: Build (ESM & CommonJS)
         run: pnpm build:all

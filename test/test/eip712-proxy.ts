@@ -33,7 +33,7 @@ describe('EIP712Proxy API', () => {
     it('should properly create an EIP712Proxy API', async () => {
       expect(await proxy.getVersion()).to.equal(await proxyContract.version());
 
-      expect(await proxy.getEAS()).to.equal(await eas.getAddress());
+      expect(await proxy.getEASAddress()).to.equal(await eas.getAddress());
       expect(await proxy.getName()).to.equal(EIP712_PROXY_NAME);
       expect(await proxy.getDomainSeparator()).to.equal(await proxyContract.getDomainSeparator());
       expect(await proxy.getAttestTypeHash()).to.equal(await proxyContract.getAttestTypeHash());
