@@ -1,6 +1,6 @@
 import { omit } from 'lodash';
 import semver from 'semver';
-import { TypedDataHandler } from './typed-data-handler.js';
+import { TypedDataHandler } from './typed-data-handler';
 export var DelegatedProxyAttestationVersion;
 (function (DelegatedProxyAttestationVersion) {
     DelegatedProxyAttestationVersion[DelegatedProxyAttestationVersion["Legacy"] = 0] = "Legacy";

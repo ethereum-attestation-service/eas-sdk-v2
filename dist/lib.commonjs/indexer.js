@@ -3,10 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Indexer = void 0;
 const tslib_1 = require("tslib");
 const Indexer_json_1 = tslib_1.__importDefault(require("@ethereum-attestation-service/eas-contracts/artifacts/contracts/Indexer.sol/Indexer.json"));
+const eas_1 = require("./eas");
 const version_1 = require("./legacy/version");
 const transaction_1 = require("./transaction");
 class Indexer extends transaction_1.Base {
     delegated;
+    eas;
     constructor(address, options) {
         const { signer } = options || {};
         super(Indexer_json_1.default.abi, address, signer);
@@ -14,6 +16,7 @@ class Indexer extends transaction_1.Base {
     // Connects the API to a specific signer
     connect(signer) {
         delete this.delegated;
+        delete this.eas;
         super.connect(signer);
         return this;
     }
@@ -26,8 +29,15 @@ class Indexer extends transaction_1.Base {
             this.read('version'));
     }
     // Returns the address of the EAS contract
-    getEAS() {
+    getEASAddress() {
         return this.read('getEAS');
+    }
+    // Returns the EAS API
+    async getEAS() {
+        if (this.eas) {
+            return this.eas;
+        }
+        return (this.eas = new eas_1.EAS(await this.getEASAddress(), { signer: this.signer }));
     }
     // Indexes an existing attestation
     // eslint-disable-next-line require-await

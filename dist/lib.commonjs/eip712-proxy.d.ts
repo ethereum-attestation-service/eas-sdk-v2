@@ -11,6 +11,7 @@ export declare class EIP712Proxy extends Base {
     constructor(address: string, options?: EIP712ProxyOptions);
     connect(signer: SignerOrProvider): this;
     getVersion(): Promise<string>;
+    getEASAddress(): Promise<string>;
     getEAS(): Promise<EAS>;
     getName(): Promise<string>;
     getDomainSeparator(): Promise<string>;

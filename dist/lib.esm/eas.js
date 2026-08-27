@@ -3,11 +3,11 @@ import EASLegacyArtifact from '@ethereum-attestation-service/eas-contracts-legac
 import EASArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/EAS.sol/EAS.json';
 import semver from 'semver';
 import { decodeEventLog, encodePacked, keccak256, stringToHex } from 'viem';
-import { legacyVersion } from './legacy/version.js';
-import { Delegated, Offchain, OffchainAttestationVersion } from './offchain/index.js';
-import { NO_EXPIRATION } from './request.js';
-import { Base, RequireSigner, Transaction } from './transaction.js';
-import { ZERO_ADDRESS, ZERO_BYTES32 } from './utils.js';
+import { legacyVersion } from './legacy/version';
+import { Delegated, Offchain, OffchainAttestationVersion } from './offchain';
+import { NO_EXPIRATION } from './request';
+import { Base, RequireSigner, Transaction } from './transaction';
+import { ZERO_ADDRESS, ZERO_BYTES32 } from './utils';
 const LEGACY_VERSION = '1.1.0';
 var Event;
 (function (Event) {
@@ -20,7 +20,7 @@ const TOPICS = {
     [Event.Timestamped]: keccak256(stringToHex('Timestamped(bytes32,uint64)')),
     [Event.RevokedOffchain]: keccak256(stringToHex('RevokedOffchain(address,bytes32,uint64)'))
 };
-export * from './request.js';
+export * from './request';
 export function RequireProxy(...args) {
     // Standard decorator: (value, context)
     if (args.length === 2) {

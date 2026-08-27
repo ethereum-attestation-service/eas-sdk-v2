@@ -1,9 +1,11 @@
 import { __decorate, __metadata } from "tslib";
 import IndexerArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/Indexer.sol/Indexer.json';
-import { legacyVersion } from './legacy/version.js';
-import { Base, RequireSigner, Transaction } from './transaction.js';
+import { EAS } from './eas';
+import { legacyVersion } from './legacy/version';
+import { Base, RequireSigner, Transaction } from './transaction';
 export class Indexer extends Base {
     delegated;
+    eas;
     constructor(address, options) {
         const { signer } = options || {};
         super(IndexerArtifact.abi, address, signer);
@@ -11,6 +13,7 @@ export class Indexer extends Base {
     // Connects the API to a specific signer
     connect(signer) {
         delete this.delegated;
+        delete this.eas;
         super.connect(signer);
         return this;
     }
@@ -23,8 +26,15 @@ export class Indexer extends Base {
             this.read('version'));
     }
     // Returns the address of the EAS contract
-    getEAS() {
+    getEASAddress() {
         return this.read('getEAS');
+    }
+    // Returns the EAS API
+    async getEAS() {
+        if (this.eas) {
+            return this.eas;
+        }
+        return (this.eas = new EAS(await this.getEASAddress(), { signer: this.signer }));
     }
     // Indexes an existing attestation
     // eslint-disable-next-line require-await

@@ -1,11 +1,11 @@
 import { __decorate, __metadata } from "tslib";
 import EIP712ProxyArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/eip712/proxy/EIP712Proxy.sol/EIP712Proxy.json';
-import { EAS } from './eas.js';
-import { legacyVersion } from './legacy/version.js';
-import { DelegatedProxy } from './offchain/index.js';
-import { NO_EXPIRATION } from './request.js';
-import { Base, RequireSigner, Transaction } from './transaction.js';
-import { ZERO_BYTES32 } from './utils.js';
+import { EAS } from './eas';
+import { legacyVersion } from './legacy/version';
+import { DelegatedProxy } from './offchain';
+import { NO_EXPIRATION } from './request';
+import { Base, RequireSigner, Transaction } from './transaction';
+import { ZERO_BYTES32 } from './utils';
 export class EIP712Proxy extends Base {
     delegated;
     eas;
@@ -28,12 +28,16 @@ export class EIP712Proxy extends Base {
         })) ??
             this.read('version'));
     }
+    // Returns the address of the EAS contract
+    getEASAddress() {
+        return this.read('getEAS');
+    }
     // Returns the EAS API
     async getEAS() {
         if (this.eas) {
             return this.eas;
         }
-        return (this.eas = new EAS(await this.read('getEAS'), { signer: this.signer }));
+        return (this.eas = new EAS(await this.getEASAddress(), { signer: this.signer }));
     }
     // Returns the EIP712 name
     getName() {

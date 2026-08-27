@@ -1,7 +1,7 @@
 import { omit } from 'lodash';
 import semver from 'semver';
-import { TypedDataHandler } from './typed-data-handler.js';
-import { EIP712_NAME, EIP712_VERSIONS } from './versions.js';
+import { TypedDataHandler } from './typed-data-handler';
+import { EIP712_NAME, EIP712_VERSIONS } from './versions';
 var DelegatedAttestationVersion;
 (function (DelegatedAttestationVersion) {
     DelegatedAttestationVersion[DelegatedAttestationVersion["Legacy"] = 0] = "Legacy";
