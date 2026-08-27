@@ -56,13 +56,18 @@ export class EIP712Proxy extends Base {
     );
   }
 
+  // Returns the address of the EAS contract
+  public getEASAddress(): Promise<string> {
+    return this.read<string>('getEAS');
+  }
+
   // Returns the EAS API
   public async getEAS(): Promise<EAS> {
     if (this.eas) {
       return this.eas;
     }
 
-    return (this.eas = new EAS(await this.read<string>('getEAS'), { signer: this.signer }));
+    return (this.eas = new EAS(await this.getEASAddress(), { signer: this.signer }));
   }
 
   // Returns the EIP712 name
@@ -125,8 +130,10 @@ export class EIP712Proxy extends Base {
       { ...(overrides as unknown as object), value }
     );
 
-    return new Transaction(tx, this.signer!, async (receipt: TransactionReceipt) =>
-      (await this.getEAS()).getUIDsFromAttestReceipt(receipt)[0]
+    return new Transaction(
+      tx,
+      this.signer!,
+      async (receipt: TransactionReceipt) => (await this.getEAS()).getUIDsFromAttestReceipt(receipt)[0]
     );
   }
 

@@ -1,5 +1,6 @@
 import IndexerArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/Indexer.sol/Indexer.json';
 import type { Abi } from 'viem';
+import { EAS } from './eas';
 import { legacyVersion } from './legacy/version';
 import { DelegatedProxy } from './offchain';
 import {
@@ -65,6 +66,7 @@ export interface GetSchemaAttestationUIDCountOptions {
 
 export class Indexer extends Base {
   private delegated?: DelegatedProxy;
+  private eas?: EAS;
 
   constructor(address: string, options?: IndexerOptions) {
     const { signer } = options || {};
@@ -75,6 +77,7 @@ export class Indexer extends Base {
   // Connects the API to a specific signer
   public connect(signer: SignerOrProvider) {
     delete this.delegated;
+    delete this.eas;
 
     super.connect(signer);
 
@@ -93,8 +96,17 @@ export class Indexer extends Base {
   }
 
   // Returns the address of the EAS contract
-  public getEAS(): Promise<string> {
+  public getEASAddress(): Promise<string> {
     return this.read<string>('getEAS');
+  }
+
+  // Returns the EAS API
+  public async getEAS(): Promise<EAS> {
+    if (this.eas) {
+      return this.eas;
+    }
+
+    return (this.eas = new EAS(await this.getEASAddress(), { signer: this.signer }));
   }
 
   // Indexes an existing attestation

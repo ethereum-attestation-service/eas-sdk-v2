@@ -572,9 +572,7 @@ export class EAS extends Base {
     return (await this.getUIDsFromMultiAttestTx(res))[0];
   }
 
-  public async getUIDsFromMultiAttestTx(
-    res: Promise<WaitableTxResponse> | WaitableTxResponse
-  ): Promise<string[]> {
+  public async getUIDsFromMultiAttestTx(res: Promise<WaitableTxResponse> | WaitableTxResponse): Promise<string[]> {
     const tx = await res;
     const receipt = (await tx.wait()) as unknown as TransactionReceipt | undefined;
     if (!receipt) {
