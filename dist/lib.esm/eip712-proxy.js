@@ -1,11 +1,11 @@
 import { __decorate, __metadata } from "tslib";
 import EIP712ProxyArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/eip712/proxy/EIP712Proxy.sol/EIP712Proxy.json';
-import { EAS } from './eas';
-import { legacyVersion } from './legacy/version';
-import { DelegatedProxy } from './offchain';
-import { NO_EXPIRATION } from './request';
-import { Base, RequireSigner, Transaction } from './transaction';
-import { ZERO_BYTES32 } from './utils';
+import { EAS } from './eas.js';
+import { legacyVersion } from './legacy/version.js';
+import { DelegatedProxy } from './offchain/index.js';
+import { NO_EXPIRATION } from './request.js';
+import { Base, RequireSigner, Transaction } from './transaction.js';
+import { ZERO_BYTES32 } from './utils.js';
 export class EIP712Proxy extends Base {
     delegated;
     eas;

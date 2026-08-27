@@ -1,6 +1,6 @@
 import { CID } from 'multiformats';
 import { decodeAbiParameters, encodeAbiParameters, isHex, parseAbiParameters, stringToHex } from 'viem';
-import { ZERO_ADDRESS } from './utils';
+import { ZERO_ADDRESS } from './utils.js';
 const TUPLE_TYPE = 'tuple';
 const TUPLE_ARRAY_TYPE = 'tuple[]';
 const BYTES32 = 'bytes32';

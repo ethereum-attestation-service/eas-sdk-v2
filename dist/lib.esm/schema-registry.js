@@ -1,9 +1,9 @@
 import { __decorate, __metadata } from "tslib";
 import SchemaRegistryArtifact from '@ethereum-attestation-service/eas-contracts/artifacts/contracts/SchemaRegistry.sol/SchemaRegistry.json';
 import { encodePacked, keccak256 } from 'viem';
-import { legacyVersion } from './legacy/version';
-import { Base, RequireSigner, Transaction } from './transaction';
-import { ZERO_ADDRESS, ZERO_BYTES32 } from './utils';
+import { legacyVersion } from './legacy/version.js';
+import { Base, RequireSigner, Transaction } from './transaction.js';
+import { ZERO_ADDRESS, ZERO_BYTES32 } from './utils.js';
 export class SchemaRegistry extends Base {
     constructor(address, options) {
         const { signer } = options || {};
