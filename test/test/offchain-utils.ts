@@ -173,6 +173,45 @@ describe('offchain utils', () => {
           ).to.be.true;
         });
       });
+
+      describe('uid', () => {
+        it('should derive the same uid as eas-sdk', () => {
+          const { schema, recipient, time, expirationTime, revocable, refUID, data, salt } = attestation.sig.message;
+
+          expect(
+            Offchain.getOffchainUID(
+              attestation.sig.message.version,
+              schema,
+              recipient,
+              time,
+              expirationTime,
+              revocable,
+              refUID,
+              data,
+              salt
+            )
+          ).to.equal(attestation.sig.uid);
+        });
+
+        it('should not verify an attestation whose uid does not match its message', async () => {
+          const offchain = new Offchain(
+            {
+              chainId: attestation.sig.domain.chainId,
+              address: attestation.sig.domain.verifyingContract,
+              version: attestation.sig.domain.version
+            },
+            attestation.sig.message.version,
+            new EAS(ZERO_ADDRESS)
+          );
+
+          expect(
+            await offchain.verifyOffchainAttestationSignature(attestation.signer, {
+              ...attestation.sig,
+              uid: '0x0000000000000000000000000000000000000000000000000000000000000001'
+            })
+          ).to.be.false;
+        });
+      });
     });
   }
 });

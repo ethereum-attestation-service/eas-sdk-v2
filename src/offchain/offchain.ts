@@ -247,6 +247,16 @@ export class Offchain extends TypedDataHandler {
     attester: string,
     attestation: SignedOffchainAttestation
   ): Promise<boolean> {
+    const {
+      message: { schema, recipient, time, expirationTime, revocable, refUID, data, salt }
+    } = attestation;
+    if (
+      attestation.uid !==
+      Offchain.getOffchainUID(this.version, schema, recipient, time, expirationTime, revocable, refUID, data, salt)
+    ) {
+      return false;
+    }
+
     const typeCount = this.verificationTypes.length;
 
     const asyncSome = async <T>(arr: T[], cb: (value: T, index: number) => Promise<boolean>): Promise<boolean> => {
@@ -320,13 +330,15 @@ export class Offchain extends TypedDataHandler {
     data: string,
     salt?: string
   ) {
+    // The schema UID is packed as the UTF-8 bytes of its hex string (not as bytes32), matching eas-sdk and the UIDs
+    // of existing offchain attestations.
     switch (version) {
       case OffchainAttestationVersion.Legacy:
         return keccak256(
           encodePacked(
-            ['bytes32', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
+            ['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
             [
-              schema as `0x${string}`,
+              stringToHex(schema),
               recipient as `0x${string}`,
               ZERO_ADDRESS as `0x${string}`,
               time,
@@ -342,10 +354,10 @@ export class Offchain extends TypedDataHandler {
       case OffchainAttestationVersion.Version1:
         return keccak256(
           encodePacked(
-            ['uint16', 'bytes32', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
+            ['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
             [
               version,
-              schema as `0x${string}`,
+              stringToHex(schema),
               recipient as `0x${string}`,
               ZERO_ADDRESS as `0x${string}`,
               time,
@@ -363,7 +375,7 @@ export class Offchain extends TypedDataHandler {
           encodePacked(
             [
               'uint16',
-              'bytes32',
+              'bytes',
               'address',
               'address',
               'uint64',
@@ -376,7 +388,7 @@ export class Offchain extends TypedDataHandler {
             ],
             [
               version,
-              schema as `0x${string}`,
+              stringToHex(schema),
               recipient as `0x${string}`,
               ZERO_ADDRESS as `0x${string}`,
               time,
