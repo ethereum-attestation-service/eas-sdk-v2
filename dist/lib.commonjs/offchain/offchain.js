@@ -169,6 +169,11 @@ class Offchain extends typed_data_handler_1.TypedDataHandler {
         };
     }
     async verifyOffchainAttestationSignature(attester, attestation) {
+        const { message: { schema, recipient, time, expirationTime, revocable, refUID, data, salt } } = attestation;
+        if (attestation.uid !==
+            Offchain.getOffchainUID(this.version, schema, recipient, time, expirationTime, revocable, refUID, data, salt)) {
+            return false;
+        }
         const typeCount = this.verificationTypes.length;
         const asyncSome = async (arr, cb) => {
             for (let i = 0; i < arr.length; i++) {
@@ -207,10 +212,12 @@ class Offchain extends typed_data_handler_1.TypedDataHandler {
         return Offchain.getOffchainUID(this.version, params.schema, params.recipient, params.time, params.expirationTime, params.revocable, params.refUID, params.data, params.salt);
     }
     static getOffchainUID(version, schema, recipient, time, expirationTime, revocable, refUID, data, salt) {
+        // Match eas-sdk v1: schema is UTF-8 encoded and packed as `bytes`, not as `bytes32`.
+        const schemaBytes = (0, viem_1.stringToHex)(schema);
         switch (version) {
             case OffchainAttestationVersion.Legacy:
-                return (0, viem_1.keccak256)((0, viem_1.encodePacked)(['bytes32', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
-                    schema,
+                return (0, viem_1.keccak256)((0, viem_1.encodePacked)(['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
+                    schemaBytes,
                     recipient,
                     utils_1.ZERO_ADDRESS,
                     time,
@@ -221,9 +228,9 @@ class Offchain extends typed_data_handler_1.TypedDataHandler {
                     0
                 ]));
             case OffchainAttestationVersion.Version1:
-                return (0, viem_1.keccak256)((0, viem_1.encodePacked)(['uint16', 'bytes32', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
+                return (0, viem_1.keccak256)((0, viem_1.encodePacked)(['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
                     version,
-                    schema,
+                    schemaBytes,
                     recipient,
                     utils_1.ZERO_ADDRESS,
                     time,
@@ -236,7 +243,7 @@ class Offchain extends typed_data_handler_1.TypedDataHandler {
             case OffchainAttestationVersion.Version2:
                 return (0, viem_1.keccak256)((0, viem_1.encodePacked)([
                     'uint16',
-                    'bytes32',
+                    'bytes',
                     'address',
                     'address',
                     'uint64',
@@ -248,7 +255,7 @@ class Offchain extends typed_data_handler_1.TypedDataHandler {
                     'uint32'
                 ], [
                     version,
-                    schema,
+                    schemaBytes,
                     recipient,
                     utils_1.ZERO_ADDRESS,
                     time,
@@ -265,61 +272,7 @@ class Offchain extends typed_data_handler_1.TypedDataHandler {
     }
     // Compatibility helper for older encodings where schema was treated as bytes instead of bytes32
     static getOffchainUidLegacySchema(version, schema, recipient, time, expirationTime, revocable, refUID, data, salt) {
-        switch (version) {
-            case OffchainAttestationVersion.Legacy:
-                return (0, viem_1.keccak256)((0, viem_1.encodePacked)(['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
-                    (0, viem_1.bytesToHex)((0, viem_1.toBytes)(schema)),
-                    recipient,
-                    utils_1.ZERO_ADDRESS,
-                    time,
-                    expirationTime,
-                    revocable,
-                    refUID,
-                    data,
-                    0
-                ]));
-            case OffchainAttestationVersion.Version1:
-                return (0, viem_1.keccak256)((0, viem_1.encodePacked)(['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
-                    version,
-                    (0, viem_1.bytesToHex)((0, viem_1.toBytes)(schema)),
-                    recipient,
-                    utils_1.ZERO_ADDRESS,
-                    time,
-                    expirationTime,
-                    revocable,
-                    refUID,
-                    data,
-                    0
-                ]));
-            case OffchainAttestationVersion.Version2:
-                return (0, viem_1.keccak256)((0, viem_1.encodePacked)([
-                    'uint16',
-                    'bytes',
-                    'address',
-                    'address',
-                    'uint64',
-                    'uint64',
-                    'bool',
-                    'bytes32',
-                    'bytes',
-                    'bytes32',
-                    'uint32'
-                ], [
-                    version,
-                    (0, viem_1.bytesToHex)((0, viem_1.toBytes)(schema)),
-                    recipient,
-                    utils_1.ZERO_ADDRESS,
-                    time,
-                    expirationTime,
-                    revocable,
-                    refUID,
-                    data,
-                    salt,
-                    0
-                ]));
-            default:
-                throw new Error('Unsupported version');
-        }
+        return Offchain.getOffchainUID(version, schema, recipient, time, expirationTime, revocable, refUID, data, salt);
     }
 }
 exports.Offchain = Offchain;

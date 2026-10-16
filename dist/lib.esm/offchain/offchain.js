@@ -1,4 +1,4 @@
-import { bytesToHex, encodeAbiParameters, encodePacked, keccak256, stringToHex, toBytes } from 'viem';
+import { bytesToHex, encodeAbiParameters, encodePacked, keccak256, stringToHex } from 'viem';
 import { ZERO_ADDRESS, ZERO_BYTES32 } from '../utils.js';
 import { InvalidPrimaryType, InvalidTypes, TypedDataHandler } from './typed-data-handler.js';
 import { EIP712_NAME } from './versions.js';
@@ -166,6 +166,11 @@ export class Offchain extends TypedDataHandler {
         };
     }
     async verifyOffchainAttestationSignature(attester, attestation) {
+        const { message: { schema, recipient, time, expirationTime, revocable, refUID, data, salt } } = attestation;
+        if (attestation.uid !==
+            Offchain.getOffchainUID(this.version, schema, recipient, time, expirationTime, revocable, refUID, data, salt)) {
+            return false;
+        }
         const typeCount = this.verificationTypes.length;
         const asyncSome = async (arr, cb) => {
             for (let i = 0; i < arr.length; i++) {
@@ -204,10 +209,12 @@ export class Offchain extends TypedDataHandler {
         return Offchain.getOffchainUID(this.version, params.schema, params.recipient, params.time, params.expirationTime, params.revocable, params.refUID, params.data, params.salt);
     }
     static getOffchainUID(version, schema, recipient, time, expirationTime, revocable, refUID, data, salt) {
+        // Match eas-sdk v1: schema is UTF-8 encoded and packed as `bytes`, not as `bytes32`.
+        const schemaBytes = stringToHex(schema);
         switch (version) {
             case OffchainAttestationVersion.Legacy:
-                return keccak256(encodePacked(['bytes32', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
-                    schema,
+                return keccak256(encodePacked(['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
+                    schemaBytes,
                     recipient,
                     ZERO_ADDRESS,
                     time,
@@ -218,9 +225,9 @@ export class Offchain extends TypedDataHandler {
                     0
                 ]));
             case OffchainAttestationVersion.Version1:
-                return keccak256(encodePacked(['uint16', 'bytes32', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
+                return keccak256(encodePacked(['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
                     version,
-                    schema,
+                    schemaBytes,
                     recipient,
                     ZERO_ADDRESS,
                     time,
@@ -233,7 +240,7 @@ export class Offchain extends TypedDataHandler {
             case OffchainAttestationVersion.Version2:
                 return keccak256(encodePacked([
                     'uint16',
-                    'bytes32',
+                    'bytes',
                     'address',
                     'address',
                     'uint64',
@@ -245,7 +252,7 @@ export class Offchain extends TypedDataHandler {
                     'uint32'
                 ], [
                     version,
-                    schema,
+                    schemaBytes,
                     recipient,
                     ZERO_ADDRESS,
                     time,
@@ -262,61 +269,7 @@ export class Offchain extends TypedDataHandler {
     }
     // Compatibility helper for older encodings where schema was treated as bytes instead of bytes32
     static getOffchainUidLegacySchema(version, schema, recipient, time, expirationTime, revocable, refUID, data, salt) {
-        switch (version) {
-            case OffchainAttestationVersion.Legacy:
-                return keccak256(encodePacked(['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
-                    bytesToHex(toBytes(schema)),
-                    recipient,
-                    ZERO_ADDRESS,
-                    time,
-                    expirationTime,
-                    revocable,
-                    refUID,
-                    data,
-                    0
-                ]));
-            case OffchainAttestationVersion.Version1:
-                return keccak256(encodePacked(['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'], [
-                    version,
-                    bytesToHex(toBytes(schema)),
-                    recipient,
-                    ZERO_ADDRESS,
-                    time,
-                    expirationTime,
-                    revocable,
-                    refUID,
-                    data,
-                    0
-                ]));
-            case OffchainAttestationVersion.Version2:
-                return keccak256(encodePacked([
-                    'uint16',
-                    'bytes',
-                    'address',
-                    'address',
-                    'uint64',
-                    'uint64',
-                    'bool',
-                    'bytes32',
-                    'bytes',
-                    'bytes32',
-                    'uint32'
-                ], [
-                    version,
-                    bytesToHex(toBytes(schema)),
-                    recipient,
-                    ZERO_ADDRESS,
-                    time,
-                    expirationTime,
-                    revocable,
-                    refUID,
-                    data,
-                    salt,
-                    0
-                ]));
-            default:
-                throw new Error('Unsupported version');
-        }
+        return Offchain.getOffchainUID(version, schema, recipient, time, expirationTime, revocable, refUID, data, salt);
     }
 }
 //# sourceMappingURL=offchain.js.map
