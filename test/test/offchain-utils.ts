@@ -1,3 +1,4 @@
+import { hexlify, solidityPackedKeccak256, toUtf8Bytes } from 'ethers';
 import {
   AttestationShareablePackageObject,
   createOffchainURL,
@@ -8,7 +9,7 @@ import {
   SignedOffchainAttestation,
   zipAndEncodeToBase64
 } from '../../src';
-import { ZERO_ADDRESS } from '../utils/Constants';
+import { ZERO_ADDRESS, ZERO_BYTES, ZERO_BYTES32 } from '../utils/Constants';
 import chai from './helpers/chai';
 
 const { expect } = chai;
@@ -169,10 +170,169 @@ describe('offchain utils', () => {
           );
 
           expect(
-            await offchain.verifyOffchainAttestationSignature(attestation.signer, decoded.sig as SignedOffchainAttestation)
+            await offchain.verifyOffchainAttestationSignature(
+              attestation.signer,
+              decoded.sig as SignedOffchainAttestation
+            )
           ).to.be.true;
         });
       });
+
+      describe('uid', () => {
+        it('should match the eas-sdk v1 offchain uid', () => {
+          const { message, uid } = attestation.sig;
+          expect(
+            Offchain.getOffchainUID(
+              message.version,
+              message.schema,
+              message.recipient,
+              message.time,
+              message.expirationTime,
+              message.revocable,
+              message.refUID,
+              message.data,
+              message.salt
+            )
+          ).to.equal(uid);
+        });
+      });
+    });
+  }
+});
+
+const expectedOffchainUID = (
+  version: OffchainAttestationVersion,
+  schema: string,
+  recipient: string,
+  time: bigint,
+  expirationTime: bigint,
+  revocable: boolean,
+  refUID: string,
+  data: string,
+  salt?: string
+) => {
+  switch (version) {
+    case OffchainAttestationVersion.Legacy:
+      return solidityPackedKeccak256(
+        ['bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
+        [hexlify(toUtf8Bytes(schema)), recipient, ZERO_ADDRESS, time, expirationTime, revocable, refUID, data, 0]
+      );
+
+    case OffchainAttestationVersion.Version1:
+      return solidityPackedKeccak256(
+        ['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'uint32'],
+        [
+          version,
+          hexlify(toUtf8Bytes(schema)),
+          recipient,
+          ZERO_ADDRESS,
+          time,
+          expirationTime,
+          revocable,
+          refUID,
+          data,
+          0
+        ]
+      );
+
+    case OffchainAttestationVersion.Version2:
+      return solidityPackedKeccak256(
+        ['uint16', 'bytes', 'address', 'address', 'uint64', 'uint64', 'bool', 'bytes32', 'bytes', 'bytes32', 'uint32'],
+        [
+          version,
+          hexlify(toUtf8Bytes(schema)),
+          recipient,
+          ZERO_ADDRESS,
+          time,
+          expirationTime,
+          revocable,
+          refUID,
+          data,
+          salt,
+          0
+        ]
+      );
+
+    default:
+      throw new Error('Unsupported version');
+  }
+};
+
+describe('offchain uid', () => {
+  const salt = '0x0000000000000000000000000000000000000000000000000000000000000123';
+
+  for (const version of [
+    OffchainAttestationVersion.Legacy,
+    OffchainAttestationVersion.Version1,
+    OffchainAttestationVersion.Version2
+  ]) {
+    context(`version ${version}`, () => {
+      for (const schema of [
+        '0x33e9094830a5cba5554d1954310e4fbed2ef5f859ec1404619adea4207f391fd',
+        '0xb16fa048b0d597f5a821747eba64efa4762ee5143e9a80600d0005386edfc995'
+      ]) {
+        for (const recipient of ['0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', ZERO_ADDRESS]) {
+          for (const time of [1n, 1690299812n]) {
+            for (const expirationTime of [0n, 1692891810n]) {
+              for (const revocable of [true, false]) {
+                for (const refUID of [
+                  ZERO_BYTES32,
+                  '0x7465737400000000000000000000000000000000000000000000000000000000'
+                ]) {
+                  for (const data of [ZERO_BYTES, '0x1234']) {
+                    context(
+                      // eslint-disable-next-line max-len
+                      `schema=${schema},recipient=${recipient},time=${time},expirationTime=${expirationTime},revocable=${revocable},refUID=${refUID},data=${data}`,
+                      () => {
+                        it('should match the eas-sdk v1 encoding', () => {
+                          const uid = Offchain.getOffchainUID(
+                            version,
+                            schema,
+                            recipient,
+                            time,
+                            expirationTime,
+                            revocable,
+                            refUID,
+                            data,
+                            salt
+                          );
+
+                          expect(uid).to.equal(
+                            expectedOffchainUID(
+                              version,
+                              schema,
+                              recipient,
+                              time,
+                              expirationTime,
+                              revocable,
+                              refUID,
+                              data,
+                              salt
+                            )
+                          );
+                          expect(
+                            Offchain.getOffchainUidLegacySchema(
+                              version,
+                              schema,
+                              recipient,
+                              time,
+                              expirationTime,
+                              revocable,
+                              refUID,
+                              data,
+                              salt
+                            )
+                          ).to.equal(uid);
+                        });
+                      }
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
   }
 });

@@ -941,10 +941,18 @@ describe('EAS API', () => {
 
             const attestation = await offchain.signOffchainAttestation(params, sender);
 
-            // Invalid attester
+            // Invalid uid
             expect(
-              offchain.verifyOffchainAttestationSignature(ZERO_ADDRESS, attestation)
-            ).to.be.rejectedWith(InvalidAddress);
+              await offchain.verifyOffchainAttestationSignature(senderAddress, {
+                ...attestation,
+                uid: ZERO_BYTES32
+              })
+            ).to.be.false;
+
+            // Invalid attester
+            expect(offchain.verifyOffchainAttestationSignature(ZERO_ADDRESS, attestation)).to.be.rejectedWith(
+              InvalidAddress
+            );
 
             // Invalid domains
             const { domain } = attestation;
@@ -1190,9 +1198,9 @@ describe('EAS API', () => {
               const response = await delegated.signDelegatedAttestation(params, sender);
 
               // Invalid attester
-              await expect(
-                delegated.verifyDelegatedAttestationSignature(ZERO_ADDRESS, response)
-              ).to.be.rejectedWith(InvalidAddress);
+              await expect(delegated.verifyDelegatedAttestationSignature(ZERO_ADDRESS, response)).to.be.rejectedWith(
+                InvalidAddress
+              );
 
               // Invalid domains
               const { domain } = response;
@@ -1356,9 +1364,9 @@ describe('EAS API', () => {
                 const response = await delegatedProxy.signDelegatedProxyAttestation(params, sender);
 
                 // Invalid attester
-                expect(delegatedProxy.verifyDelegatedProxyAttestationSignature(ZERO_ADDRESS, response)).to.be.rejectedWith(
-                  InvalidAddress
-                );
+                expect(
+                  delegatedProxy.verifyDelegatedProxyAttestationSignature(ZERO_ADDRESS, response)
+                ).to.be.rejectedWith(InvalidAddress);
 
                 // Invalid domains
                 const { domain } = response;
